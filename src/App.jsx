@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Package, DollarSign, AlertTriangle, TrendingUp, 
-  Plus, Minus, ArrowUpRight, ArrowDownRight, Search, RefreshCw, Layers, Database
+  Plus, Minus, ArrowUpRight, ArrowDownRight, Search, RefreshCw, Layers
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { 
@@ -27,18 +27,16 @@ export default function App() {
   const [movimentacoes, setMovimentacoes] = useState([]);
   const [busca, setBusca] = useState('');
   const [modalNovo, setModalNovo] = useState(false);
-  const [modalMovimento, setModalMovimento] = useState(null);
+  const [modalMovimento, setModalMovimento] = useState(null); // { item, tipo: 'ENTRADA' | 'SAIDA' }
 
-  // Formulário Novo Material (SC fixo)
+  // Formulário Novo Material
   const [nome, setNome] = useState('');
-  const [codigoSinapi, setCodigoSinapi] = useState('');
+  const [codigo, setCodigo] = useState('');
   const [categoria, setCategoria] = useState('Geral');
   const [unidade, setUnidade] = useState('un');
   const [quantidade, setQuantidade] = useState(0);
   const [estoqueMinimo, setEstoqueMinimo] = useState(5);
   const [precoCusto, setPrecoCusto] = useState(0);
-  const [carregandoSinapi, setCarregandoSinapi] = useState(false);
-  const [erroSinapi, setErroSinapi] = useState('');
 
   // Formulário Movimentação
   const [qtdMovimento, setQtdMovimento] = useState(1);
@@ -63,63 +61,26 @@ export default function App() {
     };
   }, []);
 
-  // Consultar API autoSINAPI para Santa Catarina (SC)
-  const consultarSinapi = async () => {
-    if (!codigoSinapi) {
-      setErroSinapi('Informe o código do insumo SINAPI.');
-      return;
-    }
-
-    setCarregandoSinapi(true);
-    setErroSinapi('');
-
-    try {
-      const res = await fetch(`https://autosinapi.com.br/api/v1/insumos/${codigoSinapi}?uf=SC`);
-      
-      if (!res.ok) {
-        throw new Error('Insumo não encontrado na base SINAPI.');
-      }
-
-      const data = await res.json();
-
-      if (data) {
-        setNome(data.descricao || nome);
-        setUnidade(data.unidade || unidade);
-        setPrecoCusto(Number(data.preco_mediano || data.preco || 0));
-      }
-    } catch (err) {
-      // Fallback para demonstração / simulação
-      setErroSinapi('Preço e insumo vinculados à base SINAPI (SC)');
-      if (codigoSinapi === '2692') {
-        setNome('Cimento CPII-32 50kg');
-        setUnidade('un');
-        setPrecoCusto(38.50);
-        setErroSinapi('');
-      }
-    } finally {
-      setCarregandoSinapi(false);
-    }
-  };
-
   // Cadastrar Novo Material
   const handleCadastrar = async (e) => {
     e.preventDefault();
     if (!nome) return;
 
+    const novoCodigo = codigo || `COD-${Math.floor(1000 + Math.random() * 9000)}`;
+
     await addDoc(collection(db, 'materiais'), {
       nome,
-      codigoSinapi: codigoSinapi || 'N/A',
+      codigo: novoCodigo,
       categoria,
       unidade,
       quantidade: Number(quantidade),
       estoqueMinimo: Number(estoqueMinimo),
       precoCusto: Number(precoCusto),
-      fontePreco: 'SINAPI-SC',
       criadoEm: serverTimestamp()
     });
 
     setNome('');
-    setCodigoSinapi('');
+    setCodigo('');
     setQuantidade(0);
     setPrecoCusto(0);
     setModalNovo(false);
@@ -134,14 +95,16 @@ export default function App() {
     const qtdNum = Number(qtdMovimento);
     const novaQtd = tipo === 'ENTRADA' ? item.quantidade + qtdNum : Math.max(0, item.quantidade - qtdNum);
 
+    // Atualiza quantidade do material
     await updateDoc(doc(db, 'materiais', item.id), {
       quantidade: novaQtd
     });
 
+    // Salva no histórico de movimentações
     await addDoc(collection(db, 'movimentacoes'), {
       materialId: item.id,
       nomeMaterial: item.nome,
-      codigoSinapi: item.codigoSinapi,
+      codigo: item.codigo,
       tipo,
       quantidade: qtdNum,
       observacao,
@@ -161,18 +124,19 @@ export default function App() {
 
   const materiaisFiltrados = materiais.filter(m => 
     m.nome.toLowerCase().includes(busca.toLowerCase()) || 
-    (m.codigoSinapi && m.codigoSinapi.toLowerCase().includes(busca.toLowerCase()))
+    m.codigo.toLowerCase().includes(busca.toLowerCase())
   );
 
   return (
     <div className="min-h-screen bg-[#0a0f1d] text-slate-100 font-sans p-4 md:p-8">
+      {/* Estilos diretos do Tailwind importados via CDN no HTML ou injetados */}
+      <script src="https://cdn.tailwindcss.com"></script>
+
       {/* CABEÇALHO */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between pb-6 border-b border-slate-800 gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-white tracking-wide">Visão Geral Do Estoque</h1>
-          <p className="text-slate-400 text-sm mt-1">
-            Preços oficiais baseados no <span className="text-blue-400 font-semibold">autoSINAPI (SC - Santa Catarina)</span>
-          </p>
+          <p className="text-slate-400 text-sm mt-1">Gerenciamento centralizado em tempo real na nuvem</p>
         </div>
         <div className="flex items-center gap-3">
           <button 
@@ -186,6 +150,7 @@ export default function App() {
 
       {/* DASHBOARD - CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 my-8">
+        {/* Card 1 */}
         <div className="bg-[#111827] border border-slate-800 p-5 rounded-xl flex justify-between items-start shadow-md">
           <div>
             <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Total de Itens Cadastrados</span>
@@ -197,19 +162,21 @@ export default function App() {
           </div>
         </div>
 
+        {/* Card 2 */}
         <div className="bg-[#111827] border border-slate-800 p-5 rounded-xl flex justify-between items-start shadow-md">
           <div>
             <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Valor Total do Estoque</span>
             <div className="text-3xl font-extrabold text-emerald-400 mt-2">
               R$ {valorTotalEstoque.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </div>
-            <p className="text-xs text-slate-500 mt-2">Base: Tabela SINAPI Santa Catarina</p>
+            <p className="text-xs text-slate-500 mt-2">Calculado por preço/custo unitário</p>
           </div>
           <div className="p-3 bg-emerald-950/40 border border-emerald-800/50 rounded-lg text-emerald-400">
             <DollarSign size={22} />
           </div>
         </div>
 
+        {/* Card 3 */}
         <div className="bg-[#111827] border border-amber-900/40 p-5 rounded-xl flex justify-between items-start shadow-md">
           <div>
             <span className="text-xs font-medium text-amber-400/90 uppercase tracking-wider">Alertas de Estoque Baixo</span>
@@ -223,6 +190,7 @@ export default function App() {
           </div>
         </div>
 
+        {/* Card 4 */}
         <div className="bg-[#111827] border border-slate-800 p-5 rounded-xl flex justify-between items-start shadow-md">
           <div>
             <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Movimentações Registradas</span>
@@ -251,7 +219,7 @@ export default function App() {
               <div key={item.id} className="bg-[#1a2332] border border-slate-700/60 p-4 rounded-lg flex justify-between items-center">
                 <div>
                   <h4 className="font-semibold text-white">{item.nome}</h4>
-                  <p className="text-xs text-slate-400 mt-0.5">SINAPI: {item.codigoSinapi} | Cat: {item.categoria}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Cód: {item.codigo} | Cat: {item.categoria}</p>
                 </div>
                 <div className="text-right">
                   <div className="text-amber-400 font-bold">{item.quantidade} {item.unidade}</div>
@@ -269,7 +237,7 @@ export default function App() {
         </div>
       )}
 
-      {/* TABELA DE MATERIAIS */}
+      {/* BARRA DE PESQUISA E TABELA PRINCIPAL */}
       <div className="bg-[#111827] border border-slate-800 rounded-xl p-6 shadow-md mb-8">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
           <h2 className="text-xl font-bold text-white">Lista de Materiais</h2>
@@ -277,7 +245,7 @@ export default function App() {
             <Search className="absolute left-3 top-2.5 text-slate-500" size={18} />
             <input 
               type="text"
-              placeholder="Buscar por nome ou código SINAPI..."
+              placeholder="Buscar por nome ou código..."
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               className="w-full bg-[#1a2332] border border-slate-700 text-white pl-10 pr-4 py-2 rounded-lg text-sm focus:outline-none focus:border-blue-500"
@@ -292,7 +260,7 @@ export default function App() {
                 <th className="py-3 px-4">Código / Nome</th>
                 <th className="py-3 px-4">Categoria</th>
                 <th className="py-3 px-4">Qtd Atual</th>
-                <th className="py-3 px-4">Preço Custo (SINAPI SC)</th>
+                <th className="py-3 px-4">Preço Custo</th>
                 <th className="py-3 px-4">Total</th>
                 <th className="py-3 px-4 text-center">Ações Rápidas</th>
               </tr>
@@ -301,7 +269,7 @@ export default function App() {
               {materiaisFiltrados.length === 0 ? (
                 <tr>
                   <td colSpan="6" className="py-8 text-center text-slate-500">
-                    Nenhum material cadastrado. Clique em "+ Novo Material" para começar.
+                    Nenhum material encontrado. Clique em "+ Novo Material" para cadastrar.
                   </td>
                 </tr>
               ) : (
@@ -311,7 +279,7 @@ export default function App() {
                     <tr key={item.id} className="hover:bg-slate-800/40 transition-colors">
                       <td className="py-3.5 px-4">
                         <div className="font-semibold text-white">{item.nome}</div>
-                        <div className="text-xs text-blue-400">SINAPI: {item.codigoSinapi}</div>
+                        <div className="text-xs text-slate-500">{item.codigo}</div>
                       </td>
                       <td className="py-3.5 px-4 text-slate-400">{item.categoria}</td>
                       <td className="py-3.5 px-4">
@@ -325,8 +293,7 @@ export default function App() {
                         )}
                       </td>
                       <td className="py-3.5 px-4 text-slate-300">
-                        <span className="text-emerald-400 font-semibold">R$ {(item.precoCusto || 0).toFixed(2)}</span>
-                        <span className="block text-[10px] text-slate-500">Oficial (SC)</span>
+                        R$ {(item.precoCusto || 0).toFixed(2)}
                       </td>
                       <td className="py-3.5 px-4 font-semibold text-emerald-400">
                         R$ {((item.quantidade || 0) * (item.precoCusto || 0)).toFixed(2)}
@@ -371,7 +338,7 @@ export default function App() {
                   </div>
                   <div>
                     <span className="font-semibold text-white">{m.nomeMaterial}</span>
-                    <span className="text-xs text-slate-500 ml-2">(SINAPI: {m.codigoSinapi})</span>
+                    <span className="text-xs text-slate-500 ml-2">({m.codigo})</span>
                     {m.observacao && <p className="text-xs text-slate-400 mt-0.5">{m.observacao}</p>}
                   </div>
                 </div>
@@ -389,54 +356,30 @@ export default function App() {
         </div>
       </div>
 
-      {/* MODAL: NOVO MATERIAL (COM SINAPI SC FIXO) */}
+      {/* MODAL: NOVO MATERIAL */}
       {modalNovo && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-[#111827] border border-slate-800 rounded-xl p-6 w-full max-w-lg shadow-2xl">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-white">Cadastrar Material via autoSINAPI</h3>
-              <span className="bg-blue-950 border border-blue-800/80 text-blue-400 text-xs px-2.5 py-1 rounded font-semibold flex items-center gap-1">
-                <Database size={12} /> Tabela SC
-              </span>
-            </div>
-
+            <h3 className="text-xl font-bold text-white mb-4">Cadastrar Novo Material</h3>
             <form onSubmit={handleCadastrar} className="space-y-4">
-              {/* BUSCA SINAPI SC */}
-              <div className="bg-[#1a2332] p-3 rounded-lg border border-slate-700/80 space-y-3">
-                <label className="block text-xs font-bold text-blue-400 uppercase tracking-wide">
-                  1. Buscar Insumo no autoSINAPI (Santa Catarina)
-                </label>
-                <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    value={codigoSinapi} 
-                    onChange={e => setCodigoSinapi(e.target.value)}
-                    placeholder="Código do Insumo (Ex: 2692)"
-                    className="flex-1 bg-[#111827] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                  />
-                  <button 
-                    type="button" 
-                    onClick={consultarSinapi}
-                    disabled={carregandoSinapi}
-                    className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-4 py-2 rounded-lg font-semibold flex items-center gap-1"
-                  >
-                    {carregandoSinapi ? <RefreshCw className="animate-spin" size={14} /> : <Search size={14} />} Consultar Preço SC
-                  </button>
-                </div>
-                {erroSinapi && <p className="text-[11px] text-amber-400">{erroSinapi}</p>}
-              </div>
-
-              {/* DADOS DO INSUMO */}
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">Descrição / Nome *</label>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">Nome do Material *</label>
                 <input 
                   type="text" required value={nome} onChange={e => setNome(e.target.value)}
-                  placeholder="Ex: Cimento CPII-32 50kg"
+                  placeholder="Ex: Cimento CPII 50kg"
                   className="w-full bg-[#1a2332] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">Código (Opcional)</label>
+                  <input 
+                    type="text" value={codigo} onChange={e => setCodigo(e.target.value)}
+                    placeholder="Ex: COD-5677"
+                    className="w-full bg-[#1a2332] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 mb-1">Categoria</label>
                   <input 
@@ -444,25 +387,32 @@ export default function App() {
                     className="w-full bg-[#1a2332] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 mb-1">Unidade (SINAPI)</label>
-                  <input 
-                    type="text" value={unidade} onChange={e => setUnidade(e.target.value)}
-                    className="w-full bg-[#1a2332] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
-                  />
-                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-400 mb-1">Qtd Inicial no Estoque</label>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">Qtd Inicial</label>
                   <input 
                     type="number" min="0" value={quantidade} onChange={e => setQuantidade(e.target.value)}
                     className="w-full bg-[#1a2332] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-400 mb-1">Estoque Mínimo</label>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">Unidade</label>
+                  <select 
+                    value={unidade} onChange={e => setUnidade(e.target.value)}
+                    className="w-full bg-[#1a2332] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="un">Unidade (un)</option>
+                    <option value="kg">Quilo (kg)</option>
+                    <option value="m">Metro (m)</option>
+                    <option value="m2">Metro² (m²)</option>
+                    <option value="l">Litro (l font)</option>
+                    <option value="cx">Caixa (cx)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">Estoque Mín.</label>
                   <input 
                     type="number" min="0" value={estoqueMinimo} onChange={e => setEstoqueMinimo(e.target.value)}
                     className="w-full bg-[#1a2332] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
@@ -470,16 +420,12 @@ export default function App() {
                 </div>
               </div>
 
-              {/* PREÇO TRAVADO (SOMENTE LEITURA - SC) */}
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">
-                  Preço Custo Unitário (R$) — <span className="text-emerald-400 font-bold">Bloqueado (Base SINAPI - SC)</span>
-                </label>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">Preço de Custo (R$)</label>
                 <input 
-                  type="number" step="0.01" value={precoCusto} readOnly
-                  className="w-full bg-[#0a0f1d] border border-slate-700 rounded-lg p-2.5 text-sm text-emerald-400 font-bold cursor-not-allowed opacity-90"
+                  type="number" step="0.01" value={precoCusto} onChange={e => setPrecoCusto(e.target.value)}
+                  className="w-full bg-[#1a2332] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
                 />
-                <p className="text-[11px] text-slate-500 mt-1">Preço pré-preenchido automaticamente via autoSINAPI para Santa Catarina.</p>
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
@@ -493,7 +439,7 @@ export default function App() {
                   type="submit"
                   className="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-5 py-2 rounded-lg text-sm"
                 >
-                  Salvar Insumo
+                  Salvar Material
                 </button>
               </div>
             </form>
@@ -501,7 +447,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL: MOVIMENTAÇÃO */}
+      {/* MODAL: MOVIMENTAÇÃO (ENTRADA OU SAÍDA) */}
       {modalMovimento && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-[#111827] border border-slate-800 rounded-xl p-6 w-full max-w-md shadow-2xl">
@@ -520,10 +466,10 @@ export default function App() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">Observação / Obra (Opcional)</label>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">Observação / Destino (Opcional)</label>
                 <input 
                   type="text" value={observacao} onChange={e => setObservacao(e.target.value)}
-                  placeholder="Ex: Utilizado na obra X"
+                  placeholder="Ex: Utilizado na obra X, Nota Fiscal 123"
                   className="w-full bg-[#1a2332] border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
