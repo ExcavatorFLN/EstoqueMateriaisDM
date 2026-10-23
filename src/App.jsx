@@ -121,6 +121,10 @@ export default function App() {
   // Gerar Impressão / PDF do Romaneio
   const gerarPDFRomaneio = (dadosRomaneio) => {
     const janelaPrint = window.open('', '_blank');
+    if (!janelaPrint) {
+      alert("Permita pop-ups no navegador para gerar o PDF do romaneio.");
+      return;
+    }
     const html = `
       <html>
         <head>
@@ -180,15 +184,19 @@ export default function App() {
   const handleEmitirPedido = async (e) => {
     e.preventDefault();
     
-    const itensParaPedido = materiais
-      .filter(m => itensSelecionados[m.id]?.selecionado)
-      .map(m => ({
-        materialId: m.id,
-        nome: m.nome,
-        codigo: m.codigo,
-        unidade: m.unidade,
-        quantidadeSolicitada: itensSelecionados[m.id]?.quantidade || 1
-      }));
+    // Mapeia todos os itens que possuem o checkbox selecionado
+    const itensParaPedido = Object.entries(itensSelecionados)
+      .filter(([id, estado]) => estado.selecionado)
+      .map(([id, estado]) => {
+        const m = materiais.find(mat => mat.id === id);
+        return {
+          materialId: id,
+          nome: m ? m.nome : 'Material',
+          codigo: m ? m.codigo : 'N/A',
+          unidade: m ? m.unidade : 'un',
+          quantidadeSolicitada: Number(estado.quantidade) || 1
+        };
+      });
 
     if (itensParaPedido.length === 0) {
       alert("Selecione pelo menos um material marcando a caixa de seleção.");
@@ -200,10 +208,11 @@ export default function App() {
       return;
     }
 
+    // Dá baixa no estoque de cada item marcado
     for (const item of itensParaPedido) {
       const matOriginal = materiais.find(m => m.id === item.materialId);
       if (matOriginal) {
-        const novaQtd = Math.max(0, matOriginal.quantidade - item.quantidadeSolicitada);
+        const novaQtd = Math.max(0, Number(matOriginal.quantidade) - Number(item.quantidadeSolicitada));
         await updateDoc(doc(db, 'materiais', matOriginal.id), { quantidade: novaQtd });
       }
     }
@@ -219,14 +228,16 @@ export default function App() {
       data: dataAtual
     };
 
+    // Salva o romaneio na nuvem
     await addDoc(collection(db, 'romaneios'), novoRomaneio);
 
-    // Dispara a geração automática do PDF do Romaneio
-    gerarPDFRomaneio(novoRomaneio);
-
+    // Fecha o modal imediatamente
+    setModalNovoPedido(false);
     setItensSelecionados({});
     setAutorizacao('');
-    setModalNovoPedido(false);
+
+    // Dispara a geração do PDF
+    gerarPDFRomaneio(novoRomaneio);
   };
 
   const handleEntradaRapida = async (e) => {
@@ -259,7 +270,7 @@ export default function App() {
           <p className="text-slate-400 text-sm mt-1">Gerenciamento de materiais e emissão de Romaneios de Carga</p>
         </div>
 
-        {/* BOTOES DE AÇÃO PRINCIPAIS (Com Destaque no Novo Pedido) */}
+        {/* BOTOES DE AÇÃO PRINCIPAIS (Botão Novo Pedido Verde e Estático) */}
         <div className="flex items-center gap-3">
           <button 
             onClick={() => setModalNovoMaterial(true)}
@@ -270,7 +281,7 @@ export default function App() {
           
           <button 
             onClick={() => setModalNovoPedido(true)}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-2.5 rounded-lg shadow-xl ring-2 ring-emerald-400/50 transition-all text-sm animate-pulse"
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-2.5 rounded-lg shadow-xl transition-all text-sm"
           >
             <FileText size={18} /> + Novo Pedido
           </button>
@@ -423,14 +434,14 @@ export default function App() {
                     <span className="flex items-center gap-1"><ShieldCheck size={13} className="text-emerald-400" /> Aprovação: <strong>{r.autorizacao}</strong></span>
                   </div>
                   <div className="mt-2 text-xs text-slate-400">
-                    Itens: {r.itens.map(i => `${i.quantidadeString || i.quantidadeSolicitada} ${i.unidade} de ${i.nome}`).join(' | ')}
+                    Itens: {r.itens.map(i => `${i.quantidadeSolicitada} ${i.unidade} de ${i.nome}`).join(' | ')}
                   </div>
                 </div>
                 <button 
                   onClick={() => gerarPDFRomaneio(r)}
                   className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white text-xs px-3 py-2 rounded-lg flex items-center gap-1.5 font-semibold whitespace-nowrap"
                 >
-                  <Printer size={14} /> Re ดmprimir PDF
+                  <Printer size={14} /> Re-imprimir PDF
                 </button>
               </div>
             ))
