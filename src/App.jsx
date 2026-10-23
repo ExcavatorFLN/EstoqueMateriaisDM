@@ -732,3 +732,395 @@ export default function App() {
                           {(rom.itens || []).length}
                         </td>
                         <td className="py-3 px-4 text-right font-semibold text-emerald-400">
+                          R$ {Number(rom.valorTotal || 0).toFixed(2)}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <button
+                            onClick={() => gerarPDFRomaneio(rom)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg text-xs font-medium transition"
+                          >
+                            <Printer className="w-3.5 h-3.5" /> Reimprimir
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ====================================================================
+          MODAL 1: CADASTRAR NOVO MATERIAL
+      ==================================================================== */}
+      {modalNovoMaterial && (
+        <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h2 className="text-lg font-bold">Cadastrar Novo Material</h2>
+              <button
+                onClick={() => setModalNovoMaterial(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCadastrarMaterial} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Código</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: TUB-01"
+                    value={novoMaterial.codigo}
+                    onChange={(e) =>
+                      setNovoMaterial({ ...novoMaterial, codigo: e.target.value })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Unidade</label>
+                  <input
+                    type="text"
+                    placeholder="UN, M, M³, SC..."
+                    value={novoMaterial.unidade}
+                    onChange={(e) =>
+                      setNovoMaterial({ ...novoMaterial, unidade: e.target.value })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">
+                  Nome / Especificação do Material *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Tubo de Concreto DN 400mm"
+                  value={novoMaterial.nome}
+                  onChange={(e) =>
+                    setNovoMaterial({ ...novoMaterial, nome: e.target.value })
+                  }
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Categoria</label>
+                <input
+                  type="text"
+                  value={novoMaterial.categoria}
+                  onChange={(e) =>
+                    setNovoMaterial({ ...novoMaterial, categoria: e.target.value })
+                  }
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Estoque Inicial
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={novoMaterial.quantidade}
+                    onChange={(e) =>
+                      setNovoMaterial({ ...novoMaterial, quantidade: e.target.value })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Estoque Mínimo
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={novoMaterial.estoqueMinimo}
+                    onChange={(e) =>
+                      setNovoMaterial({
+                        ...novoMaterial,
+                        estoqueMinimo: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Preço Unit. (R$)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={novoMaterial.preco}
+                    onChange={(e) =>
+                      setNovoMaterial({ ...novoMaterial, preco: e.target.value })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setModalNovoMaterial(false)}
+                  className="px-4 py-2 bg-slate-800 rounded-xl text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold"
+                >
+                  Salvar Material
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================================
+          MODAL 2: ENTRADA RÁPIDA DE ESTOQUE
+      ==================================================================== */}
+      {modalEntradaRapida && (
+        <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h2 className="text-lg font-bold">Entrada Rápida de Material</h2>
+              <button
+                onClick={() => setModalEntradaRapida(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEntradaRapida} className="space-y-4">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">
+                  Selecione o Material
+                </label>
+                <select
+                  required
+                  value={entradaMaterialId}
+                  onChange={(e) => setEntradaMaterialId(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm"
+                >
+                  <option value="">-- Escolha um item --</option>
+                  {materiais.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.nome} (Saldo atual: {m.quantidade} {m.unidade})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">
+                  Quantidade a Adicionar
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={entradaQtd}
+                  onChange={(e) => setEntradaQtd(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setModalEntradaRapida(false)}
+                  className="px-4 py-2 bg-slate-800 rounded-xl text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-semibold"
+                >
+                  Confirmar Entrada
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================================
+          MODAL 3: NOVO PEDIDO / EMISSÃO DE ROMANEIO COM BAIXA EM LOTE
+      ==================================================================== */}
+      {modalNovoPedido && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full p-6 space-y-5 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h2 className="text-lg font-bold">Emitir Novo Pedido / Romaneio</h2>
+                <p className="text-xs text-slate-400">
+                  Marque os materiais, defina as quantidades e emita o PDF com baixa automática no Firestore
+                </p>
+              </div>
+              <button
+                onClick={() => setModalNovoPedido(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={handleEmitirPedido}
+              className="space-y-4 overflow-y-auto pr-1 flex-1"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Requerente / Destino da Obra *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: Equipe Drenagem - Obra Centro"
+                    value={requerente}
+                    onChange={(e) => setRequerente(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Autorizado por *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Nome do responsável"
+                    value={autorizacao}
+                    onChange={(e) => setAutorizacao(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="border border-slate-800 rounded-xl overflow-hidden">
+                <div className="bg-slate-950 px-4 py-2.5 text-xs font-semibold uppercase text-slate-400 flex justify-between">
+                  <span>Selecione os Materiais Disponíveis</span>
+                  <span>Selecionados: {itensSelecionados.length}</span>
+                </div>
+
+                <div className="max-h-72 overflow-y-auto divide-y divide-slate-800">
+                  {materiais.map((mat) => {
+                    const itemMarcado = itensSelecionados.find(
+                      (i) => i.id === mat.id
+                    );
+                    const saldo = Number(mat.quantidade || 0);
+                    const semEstoque = saldo <= 0;
+
+                    return (
+                      <div
+                        key={mat.id}
+                        className={`flex items-center justify-between px-4 py-3 text-sm ${
+                          itemMarcado ? "bg-blue-950/30" : "hover:bg-slate-800/40"
+                        } ${semEstoque ? "opacity-50" : ""}`}
+                      >
+                        <button
+                          type="button"
+                          disabled={semEstoque}
+                          onClick={() => toggleSelecaoMaterial(mat)}
+                          className="flex items-center gap-3 text-left flex-1"
+                        >
+                          {itemMarcado ? (
+                            <CheckSquare className="w-5 h-5 text-blue-400 shrink-0" />
+                          ) : (
+                            <Square className="w-5 h-5 text-slate-500 shrink-0" />
+                          )}
+                          <div>
+                            <p className="font-medium text-white">{mat.nome}</p>
+                            <p className="text-xs text-slate-400">
+                              Saldo disponível: {saldo} {mat.unidade || "UN"} | R${" "}
+                              {Number(mat.preco || 0).toFixed(2)}
+                            </p>
+                          </div>
+                        </button>
+
+                        {itemMarcado && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-400">Qtd:</span>
+                            <input
+                              type="number"
+                              min="1"
+                              max={saldo}
+                              value={itemMarcado.qtdPedido}
+                              onChange={(e) =>
+                                alterarQtdPedido(mat.id, e.target.value)
+                              }
+                              className="w-24 bg-slate-950 border border-blue-500/50 rounded-lg px-2.5 py-1 text-right text-sm font-semibold"
+                            />
+                            <span className="text-xs text-slate-400 w-8">
+                              {mat.unidade || "UN"}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+                <div className="text-sm text-slate-300">
+                  Total estimado do pedido:{" "}
+                  <strong className="text-emerald-400">
+                    R${" "}
+                    {itensSelecionados
+                      .reduce(
+                        (acc, i) =>
+                          acc + Number(i.qtdPedido) * Number(i.precoUnitario || 0),
+                        0
+                      )
+                      .toFixed(2)}
+                  </strong>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setModalNovoPedido(false)}
+                    className="px-4 py-2 bg-slate-800 rounded-xl text-sm"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={processandoPedido}
+                    className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl text-sm font-semibold shadow-lg shadow-blue-600/30"
+                  >
+                    <Printer className="w-4 h-4" />
+                    {processandoPedido
+                      ? "Processando..."
+                      : "Emitir Romaneio e Abater Estoque"}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
