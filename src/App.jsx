@@ -120,47 +120,42 @@ export default function App() {
 
   // Gerar Impressão / PDF do Romaneio
   const gerarPDFRomaneio = (dadosRomaneio) => {
-    const janelaPrint = window.open('', '_blank');
-    if (!janelaPrint) {
-      alert("Permita pop-ups no navegador para gerar o PDF do romaneio.");
-      return;
-    }
-    const html = `
+    const conteudoHtml = `
       <html>
         <head>
           <title>Romaneio de Carga #${dadosRomaneio.numeroSeq}</title>
           <style>
-            body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
-            h2 { border-bottom: 2px solid #333; padding-bottom: 5px; }
-            .info { margin-bottom: 20px; font-size: 14px; }
-            .info p { margin: 5px 0; }
+            body { font-family: Arial, sans-serif; padding: 30px; color: #222; }
+            h2 { border-bottom: 2px solid #222; padding-bottom: 8px; margin-bottom: 15px; }
+            .info { margin-bottom: 25px; font-size: 14px; line-height: 1.6; }
+            .info p { margin: 4px 0; }
             table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-            th, td { border: 1px solid #ccc; padding: 8px 12px; text-align: left; font-size: 13px; }
-            th { background-color: #f4f4f4; }
-            .footer { margin-top: 30px; font-size: 11px; text-align: center; color: #777; }
+            th, td { border: 1px solid #999; padding: 10px 12px; text-align: left; font-size: 13px; }
+            th { background-color: #eaeaea; }
+            .footer { margin-top: 40px; font-size: 11px; text-align: center; color: #555; border-top: 1px solid #ccc; pt: 10px; }
           </style>
         </head>
         <body>
           <h2>ROMANEIO DE CARGA - PEDIDO #${dadosRomaneio.numeroSeq}</h2>
           <div class="info">
-            <p><strong>Data e Hora:</strong> ${new Date(dadosRomaneio.data).toLocaleString('pt-BR')}</p>
+            <p><strong>Data e Hora da Geração:</strong> ${new Date(dadosRomaneio.data).toLocaleString('pt-BR')}</p>
             <p><strong>Órgão Requisitante:</strong> ${dadosRomaneio.requerente}</p>
             <p><strong>Responsável pela Aprovação:</strong> ${dadosRomaneio.autorizacao}</p>
           </div>
-          <h3>Materiais Requisitados</h3>
+          <h3>Lista de Materiais e Quantidades</h3>
           <table>
             <thead>
               <tr>
                 <th>Código</th>
                 <th>Material</th>
                 <th>Unidade</th>
-                <th>Quantidade</th>
+                <th>Quantidade Requisitada</th>
               </tr>
             </thead>
             <tbody>
               ${dadosRomaneio.itens.map(i => `
                 <tr>
-                  <td>${i.codigo || 'N/A'}</td>
+                  <td>${i.codigo}</td>
                   <td>${i.nome}</td>
                   <td>${i.unidade}</td>
                   <td><strong>${i.quantidadeSolicitada}</strong></td>
@@ -172,33 +167,30 @@ export default function App() {
             Documento gerado automaticamente pelo Sistema de Controle de Estoque & Romaneios.
           </div>
           <script>
-            window.onload = function() { window.print(); }
+            window.setTimeout(function() {
+              window.print();
+            }, 500);
           </script>
         </body>
       </html>
     `;
-    janelaPrint.document.write(html);
-    janelaPrint.document.close();
+
+    const janelaPrint = window.open('', '_blank');
+    if (janelaPrint) {
+      janelaPrint.document.write(conteudoHtml);
+      janelaPrint.document.close();
+    } else {
+      alert("O navegador bloqueou a abertura automática da janela de impressão. Por favor, permita pop-ups.");
+    }
   };
 
   const handleEmitirPedido = async (e) => {
     e.preventDefault();
     
-    // Mapeia todos os itens que possuem o checkbox selecionado
-    const itensParaPedido = Object.entries(itensSelecionados)
-      .filter(([id, estado]) => estado.selecionado)
-      .map(([id, estado]) => {
-        const m = materiais.find(mat => mat.id === id);
-        return {
-          materialId: id,
-          nome: m ? m.nome : 'Material',
-          codigo: m ? m.codigo : 'N/A',
-          unidade: m ? m.unidade : 'un',
-          quantidadeSolicitada: Number(estado.quantidade) || 1
-        };
-      });
+    // Filtra rigorosamente todos os IDs marcados
+    const idsMarcados = Object.keys(itensSelecionados).filter(id => itensSelecionados[id]?.selecionado);
 
-    if (itensParaPedido.length === 0) {
+    if (idsMarcados.length === 0) {
       alert("Selecione pelo menos um material marcando a caixa de seleção.");
       return;
     }
@@ -208,12 +200,26 @@ export default function App() {
       return;
     }
 
-    // Dá baixa no estoque de cada item marcado
-    for (const item of itensParaPedido) {
-      const matOriginal = materiais.find(m => m.id === item.materialId);
+    const itensParaPedido = [];
+
+    // Processa a baixa de cada item selecionado
+    for (const id of idsMarcados) {
+      const matOriginal = materiais.find(m => m.id === id);
+      const qtdDesejada = Number(itensSelecionados[id].quantidade) || 1;
+
       if (matOriginal) {
-        const novaQtd = Math.max(0, Number(matOriginal.quantidade) - Number(item.quantidadeSolicitada));
-        await updateDoc(doc(db, 'materiais', matOriginal.id), { quantidade: novaQtd });
+        const novaQtd = Math.max(0, Number(matOriginal.quantidade) - qtdDesejada);
+        
+        // Atualiza no Firestore
+        await updateDoc(doc(db, 'materiais', id), { quantidade: novaQtd });
+
+        itensParaPedido.push({
+          materialId: id,
+          nome: matOriginal.nome,
+          codigo: matOriginal.codigo || 'N/A',
+          unidade: matOriginal.unidade || 'un',
+          quantidadeSolicitada: qtdDesejada
+        });
       }
     }
 
@@ -231,12 +237,12 @@ export default function App() {
     // Salva o romaneio na nuvem
     await addDoc(collection(db, 'romaneios'), novoRomaneio);
 
-    // Fecha o modal imediatamente
+    // Fecha a janela e reseta os estados imediatamente
     setModalNovoPedido(false);
     setItensSelecionados({});
     setAutorizacao('');
 
-    // Dispara a geração do PDF
+    // Gera o PDF / Janela de impressão
     gerarPDFRomaneio(novoRomaneio);
   };
 
@@ -270,7 +276,7 @@ export default function App() {
           <p className="text-slate-400 text-sm mt-1">Gerenciamento de materiais e emissão de Romaneios de Carga</p>
         </div>
 
-        {/* BOTOES DE AÇÃO PRINCIPAIS (Botão Novo Pedido Verde e Estático) */}
+        {/* BOTOES DE AÇÃO PRINCIPAIS */}
         <div className="flex items-center gap-3">
           <button 
             onClick={() => setModalNovoMaterial(true)}
