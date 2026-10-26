@@ -48,6 +48,29 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// Lista oficial de Requerentes / Destinos
+const LISTA_REQUERENTES = [
+  "INTENDÊNCIA DE CANASVIEIRAS",
+  "INTENDÊNCIA DE RATONES",
+  "INTENDÊNCIA DA CACHOEIRA DO BOM JESUS",
+  "INTENDÊNCIA DE SANTO ANTONIO DE LISBOA",
+  "INTENDÊNCIA DOS INGLESES",
+  "INTENDÊNCIA DA TAPERA",
+  "INTENDÊNCIA DO CAMPECHE",
+  "INTENDÊNCIA DO RIBEIRAO DA ILHA",
+  "INTENDÊNCIA DO PANTANO DO SUL",
+  "INTENDÊNCIA DO RIO VERMELHO",
+  "INTENDÊNCIA DA BARRA DA LAGOA",
+  "INTENDÊNCIA DA LAGOA DA CONCEIÇÃO",
+  "INTENDÊNCIA DO SACO DOS LIMÕES",
+  "INTENDÊNCIA DO CENTRO",
+  "INTENDÊNCIA DO SACO GRANDE",
+  "INTENDÊNCIA DA TRINDADE",
+  "INTENDÊNCIA VARG GRANDE E VARG DO BOM JESUS",
+  "DIRETORIA DE MANUTENÇÃO",
+  "DIRETORIA DE SERVIÇOS",
+];
+
 export default function App() {
   // Estados principais sincronizados com o Firestore
   const [materiais, setMateriais] = useState([]);
@@ -80,7 +103,7 @@ export default function App() {
 
   // Estados de Novo Pedido / Emissão de Romaneio
   const [itensSelecionados, setItensSelecionados] = useState([]);
-  const [requerente, setRequerente] = useState("");
+  const [requerente, setRequerente] = useState(LISTA_REQUERENTES[0]);
   const [autorizacao, setAutorizacao] = useState("");
 
   // ==========================================================================
@@ -464,7 +487,7 @@ export default function App() {
       await batch.commit();
 
       setItensSelecionados([]);
-      setRequerente("");
+      setRequerente(LISTA_REQUERENTES[0]);
       setAutorizacao("");
       setModalNovoPedido(false);
       setProcessandoPedido(false);
@@ -1017,230 +1040,3 @@ export default function App() {
           MODAL 2: ENTRADA RÁPIDA DE ESTOQUE
       ==================================================================== */}
       {modalEntradaRapida && (
-        <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h2 className="text-lg font-bold">Entrada Rápida de Material</h2>
-              <button
-                onClick={() => setModalEntradaRapida(false)}
-                className="text-slate-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleEntradaRapida} className="space-y-4">
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">
-                  Selecione o Material
-                </label>
-                <select
-                  required
-                  value={entradaMaterialId}
-                  onChange={(e) => setEntradaMaterialId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm"
-                >
-                  <option value="">-- Escolha um item --</option>
-                  {materiais.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.nome} (Saldo atual: {m.quantidade} {m.unidade})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">
-                  Quantidade a Adicionar
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  value={entradaQtd}
-                  onChange={(e) => setEntradaQtd(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setModalEntradaRapida(false)}
-                  className="px-4 py-2 bg-slate-800 rounded-xl text-sm"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-semibold"
-                >
-                  Confirmar Entrada
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ====================================================================
-          MODAL 3: NOVO PEDIDO / EMISSÃO DE ROMANEIO COM BAIXA EM LOTE
-      ==================================================================== */}
-      {modalNovoPedido && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full p-6 space-y-5 max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div>
-                <h2 className="text-lg font-bold">Emitir Novo Pedido / Romaneio</h2>
-                <p className="text-xs text-slate-400">
-                  Marque os materiais, defina as quantidades e emita o PDF com baixa automática no Firestore
-                </p>
-              </div>
-              <button
-                onClick={() => setModalNovoPedido(false)}
-                className="text-slate-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form
-              onSubmit={handleEmitirPedido}
-              className="space-y-4 overflow-y-auto pr-1 flex-1"
-            >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">
-                    Requerente / Destino da Obra *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ex: Equipe Drenagem - Obra Centro"
-                    value={requerente}
-                    onChange={(e) => setRequerente(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">
-                    Autorizado por *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Nome do responsável"
-                    value={autorizacao}
-                    onChange={(e) => setAutorizacao(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="border border-slate-800 rounded-xl overflow-hidden">
-                <div className="bg-slate-950 px-4 py-2.5 text-xs font-semibold uppercase text-slate-400 flex justify-between">
-                  <span>Selecione os Materiais Disponíveis</span>
-                  <span>Selecionados: {itensSelecionados.length}</span>
-                </div>
-
-                <div className="max-h-72 overflow-y-auto divide-y divide-slate-800">
-                  {materiais.map((mat) => {
-                    const itemMarcado = itensSelecionados.find(
-                      (i) => i.id === mat.id
-                    );
-                    const saldo = Number(mat.quantidade || 0);
-                    const semEstoque = saldo <= 0;
-
-                    return (
-                      <div
-                        key={mat.id}
-                        className={`flex items-center justify-between px-4 py-3 text-sm ${
-                          itemMarcado ? "bg-blue-950/30" : "hover:bg-slate-800/40"
-                        } ${semEstoque ? "opacity-50" : ""}`}
-                      >
-                        <button
-                          type="button"
-                          disabled={semEstoque}
-                          onClick={() => toggleSelecaoMaterial(mat)}
-                          className="flex items-center gap-3 text-left flex-1"
-                        >
-                          {itemMarcado ? (
-                            <CheckSquare className="w-5 h-5 text-blue-400 shrink-0" />
-                          ) : (
-                            <Square className="w-5 h-5 text-slate-500 shrink-0" />
-                          )}
-                          <div>
-                            <p className="font-medium text-white">{mat.nome}</p>
-                            <p className="text-xs text-slate-400">
-                              Saldo disponível: {saldo} {mat.unidade || "UN"} | R${" "}
-                              {Number(mat.preco || 0).toFixed(2)}
-                            </p>
-                          </div>
-                        </button>
-
-                        {itemMarcado && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-slate-400">Qtd:</span>
-                            <input
-                              type="number"
-                              min="1"
-                              max={saldo}
-                              value={itemMarcado.qtdPedido}
-                              onChange={(e) =>
-                                alterarQtdPedido(mat.id, e.target.value)
-                              }
-                              className="w-24 bg-slate-950 border border-blue-500/50 rounded-lg px-2.5 py-1 text-right text-sm font-semibold"
-                            />
-                            <span className="text-xs text-slate-400 w-8">
-                              {mat.unidade || "UN"}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between pt-4 border-t border-slate-800">
-                <div className="text-sm text-slate-300">
-                  Total estimado do pedido:{" "}
-                  <strong className="text-emerald-400">
-                    R${" "}
-                    {itensSelecionados
-                      .reduce(
-                        (acc, i) =>
-                          acc + Number(i.qtdPedido) * Number(i.precoUnitario || 0),
-                        0
-                      )
-                      .toFixed(2)}
-                  </strong>
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setModalNovoPedido(false)}
-                    className="px-4 py-2 bg-slate-800 rounded-xl text-sm"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={processandoPedido}
-                    className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl text-sm font-semibold shadow-lg shadow-blue-600/30"
-                  >
-                    <Printer className="w-4 h-4" />
-                    {processandoPedido
-                      ? "Processando..."
-                      : "Emitir Romaneio e Abater Estoque"}
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
