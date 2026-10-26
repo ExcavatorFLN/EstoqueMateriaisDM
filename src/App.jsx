@@ -296,7 +296,7 @@ export default function App() {
   };
 
   // ==========================================================================
-  // 6. LÓGICA DE PEDIDOS E PDF COM LOGO
+  // 6. LÓGICA DE PEDIDOS E PDF COM LOGO ORIGINAL
   // ==========================================================================
   const toggleSelecaoMaterial = (material) => {
     setItensSelecionados((prev) => {
@@ -364,7 +364,7 @@ export default function App() {
         <style>
           body { font-family: Arial, Helvetica, sans-serif; padding: 28px; color: #111827; }
           .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #111827; padding-bottom: 14px; margin-bottom: 20px; }
-          .logo-pdf { height: 60px; max-width: 250px; object-fit: contain; }
+          .logo-pdf { height: 60px; max-width: 260px; object-fit: contain; }
           .meta { background: #f9fafb; border: 1px solid #d1d5db; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; }
           table { width: 100%; border-collapse: collapse; margin-top: 10px; }
           th, td { border: 1px solid #d1d5db; padding: 8px 10px; font-size: 12px; }
@@ -558,8 +558,11 @@ export default function App() {
             <img
               src="/logo-prefeitura.jpg"
               alt="Prefeitura de Florianópolis"
-              className="h-16 w-auto object-contain filter invert brightness-200 contrast-125"
-              style={{ mixBlendMode: "screen" }}
+              className="h-16 w-auto object-contain"
+              style={{
+                filter: "brightness(0) invert(1)",
+                mixBlendMode: "screen",
+              }}
             />
           </div>
           <div>
@@ -584,15 +587,18 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* CABEÇALHO COM LOGO TRATADA EM BRANCO */}
+        {/* CABEÇALHO COM LOGO 100% BRANCA */}
         <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg">
           <div className="flex items-center gap-5">
             <div className="flex items-center">
               <img
                 src="/logo-prefeitura.jpg"
                 alt="Prefeitura de Florianópolis"
-                className="h-14 sm:h-16 w-auto object-contain filter invert brightness-200 contrast-125"
-                style={{ mixBlendMode: "screen" }}
+                className="h-14 sm:h-16 w-auto object-contain"
+                style={{
+                  filter: "brightness(0) invert(1)",
+                  mixBlendMode: "screen",
+                }}
               />
             </div>
             <div className="border-l border-slate-800 pl-4 hidden sm:block">
@@ -758,7 +764,7 @@ export default function App() {
                         <td className={`py-3 px-4 text-right font-semibold ${cancelado ? "line-through text-slate-500" : "text-emerald-400"}`}>R$ {Number(rom.valorTotal || 0).toFixed(2)}</td>
                         <td className="py-3 px-4 text-center">
                           {cancelado ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-300"><Ban className="w-3 h-3"/> Cancelado</span>
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-300"><Ban className="w-3 h-3"/> Cancelado</span>
                           ) : (
                             <span className="px-2 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-300">Emitido</span>
                           )}
