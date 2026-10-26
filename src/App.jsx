@@ -28,6 +28,8 @@ import {
   X,
   ClipboardList,
   AlertTriangle,
+  RotateCcw,
+  Ban,
 } from "lucide-react";
 
 // ============================================================================
@@ -54,6 +56,7 @@ export default function App() {
   const [abaAtiva, setAbaAtiva] = useState("estoque"); // "estoque" | "romaneios"
   const [busca, setBusca] = useState("");
   const [processandoPedido, setProcessandoPedido] = useState(false);
+  const [estornandoId, setEstornandoId] = useState(null);
 
   // Estados dos Modais
   const [modalNovoMaterial, setModalNovoMaterial] = useState(false);
@@ -135,11 +138,13 @@ export default function App() {
       (acc, m) => acc + Number(m.quantidade || 0) * Number(m.preco || 0),
       0
     );
+    const romaneiosAtivos = romaneios.filter((r) => r.status !== "cancelado").length;
+
     return {
       totalItens,
       estoqueBaixo,
       valorTotalEstoque,
-      totalRomaneios: romaneios.length,
+      totalRomaneios: romaneiosAtivos,
     };
   }, [materiais, romaneios]);
 
@@ -229,7 +234,7 @@ export default function App() {
   };
 
   // ==========================================================================
-  // 5. LÓGICA DE PEDIDOS, BAIXA EM LOTE (WRITEBATCH) E ROMANEIO EM PDF
+  // 5. LÓGICA DE PEDIDOS, BAIXA EM LOTE, ESTORNO E ROMANEIO EM PDF
   // ==========================================================================
   const toggleSelecaoMaterial = (material) => {
     setItensSelecionados((prev) => {
@@ -272,6 +277,15 @@ export default function App() {
     const dataFormatada = dadosRomaneio.dataEmissao
       ? new Date(dadosRomaneio.dataEmissao).toLocaleString("pt-BR")
       : new Date().toLocaleString("pt-BR");
+
+    const estaCancelado = dadosRomaneio.status === "cancelado";
+
+    const tarjaCancelado = estaCancelado
+      ? `<div style="background:#fef2f2;border:2px solid #dc2626;color:#991b1b;padding:10px 14px;border-radius:6px;margin-bottom:16px;font-weight:bold;text-align:center;">
+          DOCUMENTO CANCELADO E ESTORNADO AO ESTOQUE
+          ${dadosRomaneio.motivoCancelamento ? `<br/><span style="font-weight:normal;font-size:12px;">Motivo: ${dadosRomaneio.motivoCancelamento}</span>` : ""}
+        </div>`
+      : "";
 
     const linhasTabela = (dadosRomaneio.itens || [])
       .map(
@@ -320,6 +334,8 @@ export default function App() {
             <p style="margin: 4px 0 0 0; font-size: 12px;">Data: ${dataFormatada}</p>
           </div>
         </div>
+
+        ${tarjaCancelado}
 
         <div class="meta">
           <p style="margin: 4px 0;"><strong>Requerente / Destino da Obra:</strong> ${dadosRomaneio.requerente}</p>
@@ -386,7 +402,6 @@ export default function App() {
       return;
     }
 
-    // Validação de saldo de todos os itens selecionados
     for (const item of itensValidos) {
       const matBanco = materiais.find((m) => m.id === item.id);
       const saldoAtual = Number(matBanco?.quantidade ?? item.estoqueAtual ?? 0);
@@ -398,7 +413,6 @@ export default function App() {
       }
     }
 
-    // Abre a aba do PDF no clique antes do await para evitar bloqueio de pop-up
     const janelaImpressao = window.open("", "_blank");
     if (janelaImpressao) {
       janelaImpressao.document.write(
@@ -411,7 +425,6 @@ export default function App() {
     try {
       const batch = writeBatch(db);
 
-      // 1. Abate o estoque de todos os itens selecionados no mesmo lote
       for (const item of itensValidos) {
         const matBanco = materiais.find((m) => m.id === item.id);
         const saldoAtual = Number(matBanco?.quantidade ?? item.estoqueAtual ?? 0);
@@ -424,7 +437,6 @@ export default function App() {
         });
       }
 
-      // 2. Registra o romaneio na coleção "romaneios"
       const numeroRomaneio = String(Date.now()).slice(-6);
       const valorTotal = itensValidos.reduce(
         (acc, item) =>
@@ -437,25 +449,26 @@ export default function App() {
         numeroRomaneio,
         requerente: requerente.trim(),
         autorizacao: autorizacao.trim(),
-        itens: itensValidos,
-        valorTotal,
+        itens: itensValidos.map((i) => ({
+          ...i,
+          precoUnitario: Number(i.precoUnitario || 0),
+        })),
+        valorTotal: Number(valorTotal || 0),
+        status: "emitido",
         dataEmissao: new Date().toISOString(),
         criadoEm: serverTimestamp(),
       };
 
       batch.set(novoRomaneioRef, dadosRomaneio);
 
-      // 3. Executa todas as operações atomicamente no Firestore
       await batch.commit();
 
-      // 4. Limpa estados e fecha o modal
       setItensSelecionados([]);
       setRequerente("");
       setAutorizacao("");
       setModalNovoPedido(false);
       setProcessandoPedido(false);
 
-      // 5. Dispara o PDF na janela já aberta
       gerarPDFRomaneio(dadosRomaneio, janelaImpressao);
     } catch (erro) {
       console.error("Erro ao emitir romaneio:", erro);
@@ -466,7 +479,63 @@ export default function App() {
   };
 
   // ==========================================================================
-  // 6. INTERFACE PRINCIPAL
+  // 6. CANCELAMENTO DE ROMANEIO E ESTORNO AUTOMÁTICO AO ESTOQUE (WRITEBATCH)
+  // ==========================================================================
+  const handleCancelarRomaneio = async (romaneio) => {
+    if (romaneio.status === "cancelado") {
+      alert("Este romaneio já foi cancelado e estornado anteriormente.");
+      return;
+    }
+
+    const motivo = window.prompt(
+      `Confirma o CANCELAMENTO do Romaneio #${romaneio.numeroRomaneio} (${romaneio.requerente})?\n\nTodas as quantidades serão devolvidas automaticamente ao estoque.\n\nInforme o motivo do cancelamento:`,
+      "Devolução / Erro de digitação"
+    );
+
+    if (motivo === null) return;
+
+    setEstornandoId(romaneio.id);
+
+    try {
+      const batch = writeBatch(db);
+
+      for (const item of romaneio.itens || []) {
+        const materialAtual = materiais.find((m) => m.id === item.id);
+        if (materialAtual) {
+          const saldoAtual = Number(materialAtual.quantidade || 0);
+          const qtdEstorno = Number(item.qtdPedido || 0);
+          const materialRef = doc(db, "materiais", String(item.id));
+
+          batch.update(materialRef, {
+            quantidade: saldoAtual + qtdEstorno,
+            ultimaMovimentacao: serverTimestamp(),
+          });
+        }
+      }
+
+      const romaneioRef = doc(db, "romaneios", String(romaneio.id));
+      batch.update(romaneioRef, {
+        status: "cancelado",
+        motivoCancelamento: motivo.trim() || "Cancelado pelo usuário",
+        dataCancelamento: new Date().toISOString(),
+        canceladoEm: serverTimestamp(),
+      });
+
+      await batch.commit();
+
+      alert(
+        `Romaneio #${romaneio.numeroRomaneio} cancelado com sucesso! Todas as quantidades foram devolvidas ao estoque.`
+      );
+    } catch (erro) {
+      console.error("Erro ao cancelar e estornar romaneio:", erro);
+      alert("Não foi possível estornar o romaneio: " + erro.message);
+    } finally {
+      setEstornandoId(null);
+    }
+  };
+
+  // ==========================================================================
+  // 7. INTERFACE PRINCIPAL
   // ==========================================================================
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8">
@@ -553,7 +622,7 @@ export default function App() {
           <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
             <div>
               <p className="text-xs uppercase tracking-wider text-slate-400">
-                Romaneios Emitidos
+                Romaneios Ativos
               </p>
               <p className="text-2xl font-bold mt-1 text-purple-400">
                 {indicadores.totalRomaneios}
@@ -688,7 +757,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ABA 2: HISTÓRICO DE ROMANEIOS EMITIDOS */}
+        {/* ABA 2: HISTÓRICO DE ROMANEIOS EMITIDOS + ESTORNO */}
         {abaAtiva === "romaneios" && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
             <div className="overflow-x-auto">
@@ -701,49 +770,100 @@ export default function App() {
                     <th className="py-3.5 px-4">Autorizado por</th>
                     <th className="py-3.5 px-4 text-center">Itens</th>
                     <th className="py-3.5 px-4 text-right">Valor Total</th>
-                    <th className="py-3.5 px-4 text-center">Imprimir PDF</th>
+                    <th className="py-3.5 px-4 text-center">Status</th>
+                    <th className="py-3.5 px-4 text-center">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800 text-sm">
                   {romaneios.length === 0 ? (
                     <tr>
-                      <td colSpan="7" className="py-8 text-center text-slate-400">
+                      <td colSpan="8" className="py-8 text-center text-slate-400">
                         Nenhum romaneio emitido até o momento.
                       </td>
                     </tr>
                   ) : (
-                    romaneios.map((rom) => (
-                      <tr key={rom.id} className="hover:bg-slate-800/40 transition">
-                        <td className="py-3 px-4 font-mono font-semibold text-blue-400">
-                          #{rom.numeroRomaneio}
-                        </td>
-                        <td className="py-3 px-4 text-slate-300">
-                          {rom.dataEmissao
-                            ? new Date(rom.dataEmissao).toLocaleString("pt-BR")
-                            : "-"}
-                        </td>
-                        <td className="py-3 px-4 font-medium text-white">
-                          {rom.requerente}
-                        </td>
-                        <td className="py-3 px-4 text-slate-300">
-                          {rom.autorizacao}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          {(rom.itens || []).length}
-                        </td>
-                        <td className="py-3 px-4 text-right font-semibold text-emerald-400">
-                          R$ {Number(rom.valorTotal || 0).toFixed(2)}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <button
-                            onClick={() => gerarPDFRomaneio(rom)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg text-xs font-medium transition"
+                    romaneios.map((rom) => {
+                      const cancelado = rom.status === "cancelado";
+
+                      return (
+                        <tr
+                          key={rom.id}
+                          className={`transition ${
+                            cancelado
+                              ? "bg-red-950/15 opacity-70"
+                              : "hover:bg-slate-800/40"
+                          }`}
+                        >
+                          <td className="py-3 px-4 font-mono font-semibold text-blue-400">
+                            #{rom.numeroRomaneio}
+                          </td>
+                          <td className="py-3 px-4 text-slate-300">
+                            {rom.dataEmissao
+                              ? new Date(rom.dataEmissao).toLocaleString("pt-BR")
+                              : "-"}
+                          </td>
+                          <td className="py-3 px-4 font-medium text-white">
+                            {rom.requerente}
+                            {cancelado && rom.motivoCancelamento && (
+                              <p className="text-xs text-red-400 mt-0.5">
+                                Motivo: {rom.motivoCancelamento}
+                              </p>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-slate-300">
+                            {rom.autorizacao}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            {(rom.itens || []).length}
+                          </td>
+                          <td
+                            className={`py-3 px-4 text-right font-semibold ${
+                              cancelado
+                                ? "line-through text-slate-500"
+                                : "text-emerald-400"
+                            }`}
                           >
-                            <Printer className="w-3.5 h-3.5" /> Reimprimir
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                            R$ {Number(rom.valorTotal || 0).toFixed(2)}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            {cancelado ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-300 border border-red-500/30">
+                                <Ban className="w-3 h-3" /> Cancelado (Estornado)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                Emitido
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => gerarPDFRomaneio(rom)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg text-xs font-medium transition"
+                                title="Reimprimir PDF do Romaneio"
+                              >
+                                <Printer className="w-3.5 h-3.5" /> PDF
+                              </button>
+
+                              {!cancelado && (
+                                <button
+                                  disabled={estornandoId === rom.id}
+                                  onClick={() => handleCancelarRomaneio(rom)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 disabled:opacity-50 text-red-300 border border-red-500/30 rounded-lg text-xs font-medium transition"
+                                  title="Cancelar romaneio e devolver itens ao estoque"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5" />
+                                  {estornandoId === rom.id
+                                    ? "Estornando..."
+                                    : "Cancelar / Estornar"}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
