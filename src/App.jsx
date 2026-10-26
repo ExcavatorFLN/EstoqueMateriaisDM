@@ -560,7 +560,7 @@ export default function App() {
         </table>
 
         <div class="assinaturas">
-          <div class="ass-box">Expedição / Almoxarifado (${dadosRomaneio.autorizacao})</div>
+          <div class="ass-box">Expedição / Almoxarifado </div>
           <div class="ass-box">Recebido por (${dadosRomaneio.requerente})</div>
         </div>
 
