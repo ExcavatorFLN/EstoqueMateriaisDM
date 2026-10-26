@@ -19,6 +19,9 @@ import {
   signInWithPopup,
   signOut,
   onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
 } from "firebase/auth";
 import {
   Package,
@@ -38,6 +41,8 @@ import {
   RotateCcw,
   Ban,
   LogOut,
+  RefreshCw,
+  Upload,
 } from "lucide-react";
 
 // ============================================================================
@@ -57,6 +62,12 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
+
+// Estilo que deixa o fundo do JPG transparente e as letras/brasão 100% brancos
+const estiloLogoBranca = {
+  filter: "grayscale(100%) invert(100%) contrast(300%) brightness(1.15)",
+  mixBlendMode: "screen",
+};
 
 // Lista oficial de Requerentes / Destinos
 const LISTA_REQUERENTES = [
@@ -85,6 +96,7 @@ export default function App() {
   // Estados de Autenticação
   const [user, setUser] = useState(null);
   const [verificandoAuth, setVerificandoAuth] = useState(true);
+  const [lembrarDeMim, setLembrarDeMim] = useState(true);
 
   // Estados principais sincronizados com o Firestore
   const [materiais, setMateriais] = useState([]);
@@ -99,10 +111,12 @@ export default function App() {
   const [modalNovoMaterial, setModalNovoMaterial] = useState(false);
   const [modalEntradaRapida, setModalEntradaRapida] = useState(false);
   const [modalNovoPedido, setModalNovoPedido] = useState(false);
+  const [modalSinapi, setModalSinapi] = useState(false);
 
-  // Estado do formulário de Novo Material
+  // Estado do formulário de Novo Material (agora com codigoSinapi)
   const [novoMaterial, setNovoMaterial] = useState({
     codigo: "",
+    codigoSinapi: "",
     nome: "",
     categoria: "Infraestrutura / Drenagem",
     unidade: "UN",
@@ -119,6 +133,11 @@ export default function App() {
   const [itensSelecionados, setItensSelecionados] = useState([]);
   const [requerente, setRequerente] = useState(LISTA_REQUERENTES[0]);
   const [autorizacao, setAutorizacao] = useState("");
+
+  // Estados do Indexador SINAPI
+  const [mesReferenciaSinapi, setMesReferenciaSinapi] = useState("10/2026");
+  const [percentualSinapi, setPercentualSinapi] = useState("");
+  const [processandoSinapi, setProcessandoSinapi] = useState(false);
 
   // ==========================================================================
   // 2. MONITORAMENTO DE AUTENTICAÇÃO E FIRESTORE
@@ -153,7 +172,10 @@ export default function App() {
       }
     );
 
-    const qRomaneios = query(collection(db, "romaneios"), orderBy("dataEmissao", "desc"));
+    const qRomaneios = query(
+      collection(db, "romaneios"),
+      orderBy("dataEmissao", "desc")
+    );
     const unsubscribeRomaneios = onSnapshot(
       qRomaneios,
       (snapshot) => {
@@ -173,14 +195,21 @@ export default function App() {
   }, [user]);
 
   // ==========================================================================
-  // 3. FUNÇÕES DE LOGIN / LOGOUT
+  // 3. FUNÇÕES DE LOGIN (COM "LEMBRAR DE MIM") E LOGOUT
   // ==========================================================================
   const handleLoginGoogle = async () => {
     try {
+      const persistenciaEscolhida = lembrarDeMim
+        ? browserLocalPersistence
+        : browserSessionPersistence;
+
+      await setPersistence(auth, persistenciaEscolhida);
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
       console.error("Erro ao fazer login com Google:", error);
-      alert("Erro ao fazer login. Certifique-se de autorizar o domínio no console do Firebase.");
+      alert(
+        "Erro ao fazer login. Verifique se o domínio vercel.app está autorizado no Firebase."
+      );
     }
   };
 
@@ -191,7 +220,7 @@ export default function App() {
   };
 
   // ==========================================================================
-  // 4. INDICADORES DO DASHBOARD
+  // 4. INDICADORES DO DASHBOARD (VALORES FINANCEIROS APENAS AQUI E NO ESTOQUE)
   // ==========================================================================
   const indicadores = useMemo(() => {
     const totalItens = materiais.length;
@@ -202,7 +231,9 @@ export default function App() {
       (acc, m) => acc + Number(m.quantidade || 0) * Number(m.preco || 0),
       0
     );
-    const romaneiosAtivos = romaneios.filter((r) => r.status !== "cancelado").length;
+    const romaneiosAtivos = romaneios.filter(
+      (r) => r.status !== "cancelado"
+    ).length;
 
     return {
       totalItens,
@@ -219,12 +250,13 @@ export default function App() {
       (m) =>
         (m.nome || "").toLowerCase().includes(termo) ||
         (m.codigo || "").toLowerCase().includes(termo) ||
+        (m.codigoSinapi || "").toLowerCase().includes(termo) ||
         (m.categoria || "").toLowerCase().includes(termo)
     );
   }, [materiais, busca]);
 
   // ==========================================================================
-  // 5. CADASTRO, ENTRADA RÁPIDA E EXCLUSÃO DE MATERIAIS
+  // 5. CADASTRO, ENTRADA RÁPIDA, EXCLUSÃO E ATUALIZAÇÃO SINAPI
   // ==========================================================================
   const handleCadastrarMaterial = async (e) => {
     e.preventDefault();
@@ -232,19 +264,25 @@ export default function App() {
 
     try {
       await addDoc(collection(db, "materiais"), {
-        codigo: novoMaterial.codigo.trim() || `MAT-${String(Date.now()).slice(-4)}`,
+        codigo:
+          novoMaterial.codigo.trim() || `MAT-${String(Date.now()).slice(-4)}`,
+        codigoSinapi: novoMaterial.codigoSinapi.trim() || "",
         nome: novoMaterial.nome.trim(),
         categoria: novoMaterial.categoria,
         unidade: novoMaterial.unidade.trim() || "UN",
         quantidade: Number(novoMaterial.quantidade || 0),
         estoqueMinimo: Number(novoMaterial.estoqueMinimo || 0),
         preco: Number(String(novoMaterial.preco).replace(",", ".") || 0),
+        referenciaPreco: novoMaterial.codigoSinapi
+          ? `SINAPI (${mesReferenciaSinapi})`
+          : "Manual",
         criadoPor: user.email,
         criadoEm: serverTimestamp(),
       });
 
       setNovoMaterial({
         codigo: "",
+        codigoSinapi: "",
         nome: "",
         categoria: "Infraestrutura / Drenagem",
         unidade: "UN",
@@ -286,7 +324,8 @@ export default function App() {
   };
 
   const handleExcluirMaterial = async (id, nome) => {
-    if (!window.confirm(`Deseja realmente excluir o material "${nome}"?`)) return;
+    if (!window.confirm(`Deseja realmente excluir o material "${nome}"?`))
+      return;
     try {
       await deleteDoc(doc(db, "materiais", String(id)));
     } catch (erro) {
@@ -295,8 +334,117 @@ export default function App() {
     }
   };
 
+  // 5.1. Aplicar índice percentual mensal SINAPI/IBGE em lote
+  const handleReajustePercentualSinapi = async (e) => {
+    e.preventDefault();
+    const perc = Number(String(percentualSinapi).replace(",", "."));
+    if (isNaN(perc) || perc === 0) {
+      return alert(
+        "Informe um percentual válido de variação mensal (ex: 0.45 para +0,45%)."
+      );
+    }
+
+    if (
+      !window.confirm(
+        `Confirma aplicar o reajuste SINAPI de ${perc}% (Ref: ${mesReferenciaSinapi}) em todos os ${materiais.length} materiais do estoque?`
+      )
+    ) {
+      return;
+    }
+
+    setProcessandoSinapi(true);
+    try {
+      const batch = writeBatch(db);
+      const fator = 1 + perc / 100;
+
+      for (const mat of materiais) {
+        const precoAtual = Number(mat.preco || 0);
+        const novoPreco = Number((precoAtual * fator).toFixed(2));
+        const matRef = doc(db, "materiais", String(mat.id));
+        batch.update(matRef, {
+          preco: novoPreco,
+          referenciaPreco: `SINAPI ${mesReferenciaSinapi} (${perc > 0 ? "+" : ""}${perc}%)`,
+          atualizadoPor: user.email,
+          ultimaMovimentacao: serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
+      setPercentualSinapi("");
+      setModalSinapi(false);
+      alert("Preços atualizados com sucesso pela variação mensal do SINAPI!");
+    } catch (erro) {
+      console.error("Erro ao reajustar pelo SINAPI:", erro);
+      alert("Erro ao atualizar preços: " + erro.message);
+    } finally {
+      setProcessandoSinapi(false);
+    }
+  };
+
+  // 5.2. Importar arquivo CSV da tabela SINAPI (Caixa/SC) pelo Código SINAPI
+  const handleImportarCSVSinapi = async (evento) => {
+    const arquivo = evento.target.files?.[0];
+    if (!arquivo) return;
+
+    setProcessandoSinapi(true);
+    try {
+      const texto = await arquivo.text();
+      const linhas = texto.split(/\r?\n/);
+
+      // Cria um mapa { codigoSinapi: preco } a partir do CSV (separado por ; ou ,)
+      const mapaPrecosSinapi = {};
+      for (const linha of linhas) {
+        const colunas = linha.split(/[;,]/).map((c) => c.replace(/"/g, "").trim());
+        if (colunas.length >= 2) {
+          const cod = colunas[0];
+          // Procura a última coluna numérica ou segunda coluna como preço
+          const possivelPreco = colunas[colunas.length - 1].replace(",", ".");
+          const valorNum = Number(possivelPreco);
+          if (cod && !isNaN(valorNum) && valorNum > 0) {
+            mapaPrecosSinapi[cod] = valorNum;
+          }
+        }
+      }
+
+      const batch = writeBatch(db);
+      let atualizados = 0;
+
+      for (const mat of materiais) {
+        const codMat = String(mat.codigoSinapi || "").trim();
+        if (codMat && mapaPrecosSinapi[codMat] !== undefined) {
+          const matRef = doc(db, "materiais", String(mat.id));
+          batch.update(matRef, {
+            preco: mapaPrecosSinapi[codMat],
+            referenciaPreco: `SINAPI CSV (${mesReferenciaSinapi})`,
+            atualizadoPor: user.email,
+            ultimaMovimentacao: serverTimestamp(),
+          });
+          atualizados++;
+        }
+      }
+
+      if (atualizados > 0) {
+        await batch.commit();
+        alert(
+          `${atualizados} materiais tiveram seus custos atualizados diretamente pela planilha SINAPI (${mesReferenciaSinapi})!`
+        );
+        setModalSinapi(false);
+      } else {
+        alert(
+          "Nenhum material cadastrado possui um 'Código SINAPI' correspondente ao arquivo enviado. Verifique se cadastrou os códigos SINAPI nos itens."
+        );
+      }
+    } catch (erro) {
+      console.error("Erro ao ler CSV SINAPI:", erro);
+      alert("Erro ao processar arquivo CSV: " + erro.message);
+    } finally {
+      setProcessandoSinapi(false);
+      evento.target.value = "";
+    }
+  };
+
   // ==========================================================================
-  // 6. LÓGICA DE PEDIDOS E PDF COM LOGO ORIGINAL
+  // 6. LÓGICA DE PEDIDOS E ROMANEIO EM PDF (SEM VALORES FINANCEIROS)
   // ==========================================================================
   const toggleSelecaoMaterial = (material) => {
     setItensSelecionados((prev) => {
@@ -309,10 +457,11 @@ export default function App() {
           {
             id: material.id,
             codigo: material.codigo || "-",
+            codigoSinapi: material.codigoSinapi || "",
             nome: material.nome || "Material sem nome",
             unidade: material.unidade || "UN",
             estoqueAtual: Number(material.quantidade || 0),
-            precoUnitario: Number(material.preco || 0),
+            precoUnitario: Number(material.preco || 0), // Mantido apenas internamente para relatórios futuros
             qtdPedido: 1,
           },
         ];
@@ -323,10 +472,13 @@ export default function App() {
   const alterarQtdPedido = (id, novaQtd) => {
     const valorNumerico = Math.max(0, Number(novaQtd));
     setItensSelecionados((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, qtdPedido: valorNumerico } : item))
+      prev.map((item) =>
+        item.id === id ? { ...item, qtdPedido: valorNumerico } : item
+      )
     );
   };
 
+  // PDF do Romaneio SEM colunas de Preço Unitário, Subtotal ou Valor Total
   const gerarPDFRomaneio = (dadosRomaneio) => {
     const dataFormatada = dadosRomaneio.dataEmissao
       ? new Date(dadosRomaneio.dataEmissao).toLocaleString("pt-BR")
@@ -348,9 +500,7 @@ export default function App() {
           <td style="text-align: center;">${item.codigo || "-"}</td>
           <td>${item.nome}</td>
           <td style="text-align: center;">${item.unidade}</td>
-          <td style="text-align: right;">${Number(item.qtdPedido)}</td>
-          <td style="text-align: right;">R$ ${Number(item.precoUnitario || 0).toFixed(2)}</td>
-          <td style="text-align: right;">R$ ${(Number(item.qtdPedido) * Number(item.precoUnitario || 0)).toFixed(2)}</td>
+          <td style="text-align: right; font-weight: bold;">${Number(item.qtdPedido)}</td>
         </tr>`
       )
       .join("");
@@ -369,8 +519,7 @@ export default function App() {
           table { width: 100%; border-collapse: collapse; margin-top: 10px; }
           th, td { border: 1px solid #d1d5db; padding: 8px 10px; font-size: 12px; }
           th { background-color: #f3f4f6; text-align: left; font-weight: bold; }
-          .total { text-align: right; font-size: 15px; font-weight: bold; margin-top: 16px; }
-          .assinaturas { display: flex; justify-content: space-between; margin-top: 70px; text-align: center; }
+          .assinaturas { display: flex; justify-content: space-between; margin-top: 75px; text-align: center; }
           .ass-box { width: 44%; border-top: 1px solid #111827; padding-top: 8px; font-size: 12px; }
         </style>
       </head>
@@ -394,25 +543,21 @@ export default function App() {
         <div class="meta">
           <p style="margin: 4px 0;"><strong>Requerente / Destino da Obra:</strong> ${dadosRomaneio.requerente}</p>
           <p style="margin: 4px 0;"><strong>Autorizado por:</strong> ${dadosRomaneio.autorizacao}</p>
-          <p style="margin: 4px 0;"><strong>Emitido por:</strong> ${dadosRomaneio.emitidoPorNome || "Almoxarifado"} (${dadosRomaneio.emitidoPorEmail || "N/A"})</p>
+          <p style="margin: 4px 0;"><strong>Registrado no sistema por:</strong> ${dadosRomaneio.emitidoPorNome || "Almoxarifado"} (${dadosRomaneio.emitidoPorEmail || "N/A"})</p>
         </div>
 
         <table>
           <thead>
             <tr>
-              <th style="width: 36px; text-align: center;">#</th>
-              <th style="width: 85px; text-align: center;">Código</th>
+              <th style="width: 45px; text-align: center;">Item</th>
+              <th style="width: 110px; text-align: center;">Código</th>
               <th>Especificação do Material</th>
-              <th style="width: 55px; text-align: center;">Unid.</th>
-              <th style="width: 70px; text-align: right;">Qtd.</th>
-              <th style="width: 95px; text-align: right;">Vlr. Unit.</th>
-              <th style="width: 105px; text-align: right;">Subtotal</th>
+              <th style="width: 75px; text-align: center;">Unid.</th>
+              <th style="width: 100px; text-align: right;">Quantidade</th>
             </tr>
           </thead>
           <tbody>${linhasTabela}</tbody>
         </table>
-
-        <div class="total">Valor Total do Romaneio: R$ ${Number(dadosRomaneio.valorTotal || 0).toFixed(2)}</div>
 
         <div class="assinaturas">
           <div class="ass-box">Expedição / Almoxarifado (${dadosRomaneio.autorizacao})</div>
@@ -440,16 +585,22 @@ export default function App() {
     if (e && e.preventDefault) e.preventDefault();
     if (processandoPedido) return;
 
-    if (!requerente.trim() || !autorizacao.trim()) return alert("Preencha Requerente e Autorização.");
+    if (!requerente.trim() || !autorizacao.trim())
+      return alert("Preencha Requerente e Autorização.");
 
-    const itensValidos = itensSelecionados.filter((item) => Number(item.qtdPedido) > 0);
-    if (itensValidos.length === 0) return alert("Selecione ao menos um material com quantidade válida.");
+    const itensValidos = itensSelecionados.filter(
+      (item) => Number(item.qtdPedido) > 0
+    );
+    if (itensValidos.length === 0)
+      return alert("Selecione ao menos um material com quantidade válida.");
 
     for (const item of itensValidos) {
       const matBanco = materiais.find((m) => m.id === item.id);
       const saldoAtual = Number(matBanco?.quantidade ?? item.estoqueAtual ?? 0);
       if (Number(item.qtdPedido) > saldoAtual) {
-        return alert(`Estoque insuficiente para "${item.nome}". Disponível: ${saldoAtual}, Solicitado: ${item.qtdPedido}.`);
+        return alert(
+          `Estoque insuficiente para "${item.nome}". Disponível: ${saldoAtual}, Solicitado: ${item.qtdPedido}.`
+        );
       }
     }
 
@@ -460,7 +611,9 @@ export default function App() {
 
       for (const item of itensValidos) {
         const matBanco = materiais.find((m) => m.id === item.id);
-        const saldoAtual = Number(matBanco?.quantidade ?? item.estoqueAtual ?? 0);
+        const saldoAtual = Number(
+          matBanco?.quantidade ?? item.estoqueAtual ?? 0
+        );
         const materialRef = doc(db, "materiais", String(item.id));
         batch.update(materialRef, {
           quantidade: Math.max(0, saldoAtual - Number(item.qtdPedido)),
@@ -469,14 +622,21 @@ export default function App() {
       }
 
       const numeroRomaneio = String(Date.now()).slice(-6);
-      const valorTotal = itensValidos.reduce((acc, item) => acc + Number(item.qtdPedido) * Number(item.precoUnitario || 0), 0);
+      const valorTotal = itensValidos.reduce(
+        (acc, item) =>
+          acc + Number(item.qtdPedido) * Number(item.precoUnitario || 0),
+        0
+      );
 
       const novoRomaneioRef = doc(collection(db, "romaneios"));
       const dadosRomaneio = {
         numeroRomaneio,
         requerente: requerente.trim(),
         autorizacao: autorizacao.trim(),
-        itens: itensValidos.map((i) => ({ ...i, precoUnitario: Number(i.precoUnitario || 0) })),
+        itens: itensValidos.map((i) => ({
+          ...i,
+          precoUnitario: Number(i.precoUnitario || 0),
+        })),
         valorTotal: Number(valorTotal || 0),
         status: "emitido",
         emitidoPorNome: user.displayName || "Usuário",
@@ -502,8 +662,12 @@ export default function App() {
   };
 
   const handleCancelarRomaneio = async (romaneio) => {
-    if (romaneio.status === "cancelado") return alert("Romaneio já cancelado e estornado.");
-    const motivo = window.prompt("Confirma o CANCELAMENTO e ESTORNO?\nInforme o motivo:", "Devolução / Erro");
+    if (romaneio.status === "cancelado")
+      return alert("Romaneio já cancelado e estornado.");
+    const motivo = window.prompt(
+      "Confirma o CANCELAMENTO e ESTORNO?\nInforme o motivo:",
+      "Devolução / Erro"
+    );
     if (motivo === null) return;
 
     setEstornandoId(romaneio.id);
@@ -514,7 +678,9 @@ export default function App() {
         if (materialAtual) {
           const materialRef = doc(db, "materiais", String(item.id));
           batch.update(materialRef, {
-            quantidade: Number(materialAtual.quantidade || 0) + Number(item.qtdPedido || 0),
+            quantidade:
+              Number(materialAtual.quantidade || 0) +
+              Number(item.qtdPedido || 0),
             ultimaMovimentacao: serverTimestamp(),
           });
         }
@@ -530,7 +696,7 @@ export default function App() {
       });
 
       await batch.commit();
-      alert("Romaneio cancelado com sucesso!");
+      alert("Romaneio cancelado e quantidades devolvidas ao estoque!");
     } catch (erro) {
       console.error("Erro ao estornar romaneio:", erro);
       alert("Erro ao estornar: " + erro.message);
@@ -540,7 +706,7 @@ export default function App() {
   };
 
   // ==========================================================================
-  // TELA DE CARREGAMENTO & LOGIN
+  // TELA DE CARREGAMENTO & LOGIN (COM CHECKBOX "LEMBRAR DE MIM")
   // ==========================================================================
   if (verificandoAuth) {
     return (
@@ -559,21 +725,41 @@ export default function App() {
               src="/logo-prefeitura.jpg"
               alt="Prefeitura de Florianópolis"
               className="h-16 w-auto object-contain"
-              style={{
-                filter: "brightness(0) invert(1)",
-                mixBlendMode: "screen",
-              }}
+              style={estiloLogoBranca}
             />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-white mb-2">Acesso ao Almoxarifado</h1>
-            <p className="text-slate-400 text-sm">Controle de Materiais, Pedidos e Romaneios</p>
+            <h1 className="text-2xl font-bold text-white mb-2">
+              Acesso ao Almoxarifado
+            </h1>
+            <p className="text-slate-400 text-sm">
+              Controle de Materiais, Pedidos e Romaneios
+            </p>
           </div>
+
+          {/* Checkbox Lembrar de Mim */}
+          <div className="flex items-center justify-center gap-2 text-sm text-slate-300">
+            <input
+              type="checkbox"
+              id="lembrarDeMim"
+              checked={lembrarDeMim}
+              onChange={(e) => setLembrarDeMim(e.target.checked)}
+              className="w-4 h-4 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 cursor-pointer"
+            />
+            <label htmlFor="lembrarDeMim" className="cursor-pointer select-none">
+              Lembrar de mim neste navegador
+            </label>
+          </div>
+
           <button
             onClick={handleLoginGoogle}
             className="w-full flex items-center justify-center gap-3 bg-white hover:bg-slate-100 text-slate-900 font-semibold py-3.5 px-4 rounded-xl transition shadow-lg"
           >
-            <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
+            <img
+              src="https://www.svgrepo.com/show/475656/google-color.svg"
+              className="w-5 h-5"
+              alt="Google"
+            />
             Entrar com Google
           </button>
         </div>
@@ -587,7 +773,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* CABEÇALHO COM LOGO 100% BRANCA */}
+        {/* CABEÇALHO COM LOGO EM BRANCO E FUNDO TRANSPARENTE */}
         <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg">
           <div className="flex items-center gap-5">
             <div className="flex items-center">
@@ -595,28 +781,41 @@ export default function App() {
                 src="/logo-prefeitura.jpg"
                 alt="Prefeitura de Florianópolis"
                 className="h-14 sm:h-16 w-auto object-contain"
-                style={{
-                  filter: "brightness(0) invert(1)",
-                  mixBlendMode: "screen",
-                }}
+                style={estiloLogoBranca}
               />
             </div>
             <div className="border-l border-slate-800 pl-4 hidden sm:block">
-              <h1 className="text-lg font-bold text-white uppercase tracking-tight">Controle de Materiais & Romaneios</h1>
-              <p className="text-xs text-slate-400">Secretaria de Infraestrutura e Manutenção</p>
+              <h1 className="text-lg font-bold text-white uppercase tracking-tight">
+                Controle de Materiais & Romaneios
+              </h1>
+              <p className="text-xs text-slate-400">
+                Secretaria de Infraestrutura e Manutenção
+              </p>
             </div>
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Informações do Usuário */}
             <div className="flex items-center gap-3 bg-slate-950 px-4 py-2 rounded-xl border border-slate-800">
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-semibold text-white leading-tight">{user.displayName || "Usuário"}</p>
+                <p className="text-sm font-semibold text-white leading-tight">
+                  {user.displayName || "Usuário"}
+                </p>
                 <p className="text-xs text-slate-400">{user.email}</p>
               </div>
-              <img src={user.photoURL || "https://www.svgrepo.com/show/311063/person.svg"} alt="Avatar" className="w-9 h-9 rounded-full border border-slate-700 object-cover" />
+              <img
+                src={
+                  user.photoURL ||
+                  "https://www.svgrepo.com/show/311063/person.svg"
+                }
+                alt="Avatar"
+                className="w-9 h-9 rounded-full border border-slate-700 object-cover"
+              />
               <div className="w-px h-8 bg-slate-800 mx-1"></div>
-              <button onClick={handleLogout} className="text-slate-400 hover:text-red-400 p-1 transition" title="Sair do sistema">
+              <button
+                onClick={handleLogout}
+                className="text-slate-400 hover:text-red-400 p-1 transition"
+                title="Sair do sistema"
+              >
                 <LogOut className="w-5 h-5" />
               </button>
             </div>
@@ -625,13 +824,28 @@ export default function App() {
 
         {/* BOTÕES DE AÇÃO */}
         <div className="flex flex-wrap items-center gap-3">
-          <button onClick={() => setModalNovoMaterial(true)} className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-medium border border-slate-700 transition">
+          <button
+            onClick={() => setModalNovoMaterial(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-medium border border-slate-700 transition"
+          >
             <Plus className="w-4 h-4" /> Novo Material
           </button>
-          <button onClick={() => setModalEntradaRapida(true)} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-sm font-medium transition">
+          <button
+            onClick={() => setModalEntradaRapida(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-sm font-medium transition"
+          >
             <ArrowUpCircle className="w-4 h-4" /> Entrada Rápida
           </button>
-          <button onClick={() => setModalNovoPedido(true)} className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-blue-600/30 transition">
+          <button
+            onClick={() => setModalSinapi(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-xl text-sm font-medium transition"
+          >
+            <RefreshCw className="w-4 h-4" /> Atualizar Preços (SINAPI)
+          </button>
+          <button
+            onClick={() => setModalNovoPedido(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-blue-600/30 transition"
+          >
             <FileText className="w-4 h-4" /> Novo Pedido / Romaneio
           </button>
         </div>
@@ -640,29 +854,43 @@ export default function App() {
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
             <div>
-              <p className="text-xs uppercase tracking-wider text-slate-400">Materiais Cadastrados</p>
+              <p className="text-xs uppercase tracking-wider text-slate-400">
+                Materiais Cadastrados
+              </p>
               <p className="text-2xl font-bold mt-1">{indicadores.totalItens}</p>
             </div>
             <Package className="w-8 h-8 text-blue-400 opacity-80" />
           </div>
           <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
             <div>
-              <p className="text-xs uppercase tracking-wider text-slate-400">Estoque Baixo</p>
-              <p className="text-2xl font-bold mt-1 text-amber-400">{indicadores.estoqueBaixo}</p>
+              <p className="text-xs uppercase tracking-wider text-slate-400">
+                Estoque Baixo
+              </p>
+              <p className="text-2xl font-bold mt-1 text-amber-400">
+                {indicadores.estoqueBaixo}
+              </p>
             </div>
             <TrendingDown className="w-8 h-8 text-amber-400 opacity-80" />
           </div>
           <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
             <div>
-              <p className="text-xs uppercase tracking-wider text-slate-400">Valor em Estoque</p>
-              <p className="text-2xl font-bold mt-1 text-emerald-400">R$ {indicadores.valorTotalEstoque.toFixed(2)}</p>
+              <p className="text-xs uppercase tracking-wider text-slate-400">
+                Valor em Estoque
+              </p>
+              <p className="text-2xl font-bold mt-1 text-emerald-400">
+                R$ {indicadores.valorTotalEstoque.toFixed(2)}
+              </p>
             </div>
             <DollarSign className="w-8 h-8 text-emerald-400 opacity-80" />
           </div>
           <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
             <div>
-              <p className="text-xs uppercase tracking-wider text-slate-400">Romaneios Ativos</p>
-              <p className="text-2xl font-bold mt-1 text-purple-400">{indicadores.totalRomaneios}</p>
+              <p className="text-xs uppercase tracking-wider text-slate-400">
+                Romaneios Ativos
+              </p>
+              <p className="text-2xl font-bold mt-1 text-purple-400">
+                {indicadores.totalRomaneios}
+              </p>
             </div>
             <ClipboardList className="w-8 h-8 text-purple-400 opacity-80" />
           </div>
@@ -671,17 +899,37 @@ export default function App() {
         {/* NAVEGAÇÃO E BUSCA */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-4 rounded-2xl">
           <div className="flex gap-2">
-            <button onClick={() => setAbaAtiva("estoque")} className={`px-4 py-2 rounded-xl text-sm font-medium transition ${abaAtiva === "estoque" ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-400"}`}>
+            <button
+              onClick={() => setAbaAtiva("estoque")}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition ${
+                abaAtiva === "estoque"
+                  ? "bg-blue-600 text-white"
+                  : "bg-slate-800 text-slate-400"
+              }`}
+            >
               Estoque ({materiais.length})
             </button>
-            <button onClick={() => setAbaAtiva("romaneios")} className={`px-4 py-2 rounded-xl text-sm font-medium transition ${abaAtiva === "romaneios" ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-400"}`}>
+            <button
+              onClick={() => setAbaAtiva("romaneios")}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition ${
+                abaAtiva === "romaneios"
+                  ? "bg-blue-600 text-white"
+                  : "bg-slate-800 text-slate-400"
+              }`}
+            >
               Romaneios ({romaneios.length})
             </button>
           </div>
           {abaAtiva === "estoque" && (
             <div className="relative w-full sm:w-80">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-              <input type="text" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar..." className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500" />
+              <input
+                type="text"
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder="Buscar por nome, código ou SINAPI..."
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+              />
             </div>
           )}
         </div>
@@ -694,6 +942,7 @@ export default function App() {
                 <thead>
                   <tr className="bg-slate-950/60 border-b border-slate-800 text-slate-400 text-xs uppercase">
                     <th className="py-3.5 px-4">Código</th>
+                    <th className="py-3.5 px-4">Cód. SINAPI</th>
                     <th className="py-3.5 px-4">Material</th>
                     <th className="py-3.5 px-4">Categoria</th>
                     <th className="py-3.5 px-4 text-center">Unid.</th>
@@ -705,27 +954,66 @@ export default function App() {
                 </thead>
                 <tbody className="divide-y divide-slate-800 text-sm">
                   {carregando ? (
-                    <tr><td colSpan="8" className="py-8 text-center text-slate-400">Carregando...</td></tr>
+                    <tr>
+                      <td colSpan="9" className="py-8 text-center text-slate-400">
+                        Carregando...
+                      </td>
+                    </tr>
                   ) : materiaisFiltrados.length === 0 ? (
-                    <tr><td colSpan="8" className="py-8 text-center text-slate-400">Nenhum material encontrado.</td></tr>
+                    <tr>
+                      <td colSpan="9" className="py-8 text-center text-slate-400">
+                        Nenhum material encontrado.
+                      </td>
+                    </tr>
                   ) : (
                     materiaisFiltrados.map((mat) => (
-                      <tr key={mat.id} className="hover:bg-slate-800/40 transition">
-                        <td className="py-3 px-4 font-mono text-xs text-slate-400">{mat.codigo || "-"}</td>
-                        <td className="py-3 px-4 font-medium text-white">{mat.nome}</td>
-                        <td className="py-3 px-4 text-slate-400">{mat.categoria || "Geral"}</td>
-                        <td className="py-3 px-4 text-center text-slate-300">{mat.unidade || "UN"}</td>
-                        <td className="py-3 px-4 text-right font-semibold">{Number(mat.quantidade || 0)}</td>
-                        <td className="py-3 px-4 text-right text-slate-300">R$ {Number(mat.preco || 0).toFixed(2)}</td>
+                      <tr
+                        key={mat.id}
+                        className="hover:bg-slate-800/40 transition"
+                      >
+                        <td className="py-3 px-4 font-mono text-xs text-slate-400">
+                          {mat.codigo || "-"}
+                        </td>
+                        <td className="py-3 px-4 font-mono text-xs text-amber-400">
+                          {mat.codigoSinapi || "-"}
+                        </td>
+                        <td className="py-3 px-4 font-medium text-white">
+                          {mat.nome}
+                        </td>
+                        <td className="py-3 px-4 text-slate-400">
+                          {mat.categoria || "Geral"}
+                        </td>
+                        <td className="py-3 px-4 text-center text-slate-300">
+                          {mat.unidade || "UN"}
+                        </td>
+                        <td className="py-3 px-4 text-right font-semibold">
+                          {Number(mat.quantidade || 0)}
+                        </td>
+                        <td className="py-3 px-4 text-right text-slate-300">
+                          R$ {Number(mat.preco || 0).toFixed(2)}
+                        </td>
                         <td className="py-3 px-4 text-center">
-                          {Number(mat.quantidade || 0) <= Number(mat.estoqueMinimo || 0) ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300"><AlertTriangle className="w-3 h-3"/> Repor</span>
+                          {Number(mat.quantidade || 0) <=
+                          Number(mat.estoqueMinimo || 0) ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300">
+                              <AlertTriangle className="w-3 h-3" /> Repor
+                            </span>
                           ) : (
-                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-300">Normal</span>
+                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-300">
+                              Normal
+                            </span>
                           )}
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <button onClick={() => handleExcluirMaterial(mat.id, mat.nome)} className="p-1.5 text-slate-400 hover:text-red-400 transition" title="Excluir"><Trash2 className="w-4 h-4" /></button>
+                          <button
+                            onClick={() =>
+                              handleExcluirMaterial(mat.id, mat.nome)
+                            }
+                            className="p-1.5 text-slate-400 hover:text-red-400 transition"
+                            title="Excluir"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -736,7 +1024,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ABA ROMANEIOS */}
+        {/* ABA ROMANEIOS (SEM COLUNA DE VALOR TOTAL) */}
         {abaAtiva === "romaneios" && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
             <div className="overflow-x-auto">
@@ -746,8 +1034,8 @@ export default function App() {
                     <th className="py-3.5 px-4">Nº Romaneio</th>
                     <th className="py-3.5 px-4">Emissão</th>
                     <th className="py-3.5 px-4">Requerente / Destino</th>
+                    <th className="py-3.5 px-4">Autorizado por</th>
                     <th className="py-3.5 px-4 text-center">Itens</th>
-                    <th className="py-3.5 px-4 text-right">Total</th>
                     <th className="py-3.5 px-4 text-center">Status</th>
                     <th className="py-3.5 px-4 text-center">Ações</th>
                   </tr>
@@ -756,24 +1044,56 @@ export default function App() {
                   {romaneios.map((rom) => {
                     const cancelado = rom.status === "cancelado";
                     return (
-                      <tr key={rom.id} className={`transition ${cancelado ? "bg-red-950/15 opacity-70" : "hover:bg-slate-800/40"}`}>
-                        <td className="py-3 px-4 font-mono font-semibold text-blue-400">#{rom.numeroRomaneio}</td>
-                        <td className="py-3 px-4 text-slate-300">{rom.dataEmissao ? new Date(rom.dataEmissao).toLocaleString("pt-BR") : "-"}</td>
-                        <td className="py-3 px-4 font-medium text-white">{rom.requerente}</td>
-                        <td className="py-3 px-4 text-center">{(rom.itens || []).length}</td>
-                        <td className={`py-3 px-4 text-right font-semibold ${cancelado ? "line-through text-slate-500" : "text-emerald-400"}`}>R$ {Number(rom.valorTotal || 0).toFixed(2)}</td>
+                      <tr
+                        key={rom.id}
+                        className={`transition ${
+                          cancelado
+                            ? "bg-red-950/15 opacity-70"
+                            : "hover:bg-slate-800/40"
+                        }`}
+                      >
+                        <td className="py-3 px-4 font-mono font-semibold text-blue-400">
+                          #{rom.numeroRomaneio}
+                        </td>
+                        <td className="py-3 px-4 text-slate-300">
+                          {rom.dataEmissao
+                            ? new Date(rom.dataEmissao).toLocaleString("pt-BR")
+                            : "-"}
+                        </td>
+                        <td className="py-3 px-4 font-medium text-white">
+                          {rom.requerente}
+                        </td>
+                        <td className="py-3 px-4 text-slate-300">
+                          {rom.autorizacao}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          {(rom.itens || []).length}
+                        </td>
                         <td className="py-3 px-4 text-center">
                           {cancelado ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-300"><Ban className="w-3 h-3"/> Cancelado</span>
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-300">
+                              <Ban className="w-3 h-3" /> Cancelado
+                            </span>
                           ) : (
-                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-300">Emitido</span>
+                            <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-300">
+                              Emitido
+                            </span>
                           )}
                         </td>
                         <td className="py-3 px-4 text-center flex items-center justify-center gap-2">
-                          <button onClick={() => gerarPDFRomaneio(rom)} className="px-3 py-1.5 bg-blue-600/20 text-blue-300 rounded-lg text-xs font-medium flex items-center gap-1"><Printer className="w-3.5 h-3.5"/> PDF</button>
+                          <button
+                            onClick={() => gerarPDFRomaneio(rom)}
+                            className="px-3 py-1.5 bg-blue-600/20 text-blue-300 rounded-lg text-xs font-medium flex items-center gap-1"
+                          >
+                            <Printer className="w-3.5 h-3.5" /> PDF
+                          </button>
                           {!cancelado && (
-                            <button disabled={estornandoId === rom.id} onClick={() => handleCancelarRomaneio(rom)} className="px-3 py-1.5 bg-red-600/20 text-red-300 rounded-lg text-xs font-medium flex items-center gap-1">
-                              <RotateCcw className="w-3.5 h-3.5"/> Estornar
+                            <button
+                              disabled={estornandoId === rom.id}
+                              onClick={() => handleCancelarRomaneio(rom)}
+                              className="px-3 py-1.5 bg-red-600/20 text-red-300 rounded-lg text-xs font-medium flex items-center gap-1"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" /> Estornar
                             </button>
                           )}
                         </td>
@@ -787,50 +1107,164 @@ export default function App() {
         )}
       </div>
 
-      {/* MODAL 1: CADASTRAR MATERIAL */}
+      {/* MODAL 1: CADASTRAR MATERIAL (COM CÓDIGO SINAPI) */}
       {modalNovoMaterial && (
         <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h2 className="text-lg font-bold">Novo Material</h2>
-              <button onClick={() => setModalNovoMaterial(false)} className="text-slate-400 hover:text-white"><X className="w-5 h-5"/></button>
+              <button
+                onClick={() => setModalNovoMaterial(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
             <form onSubmit={handleCadastrarMaterial} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Código</label>
-                  <input type="text" value={novoMaterial.codigo} onChange={(e) => setNovoMaterial({ ...novoMaterial, codigo: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm" />
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Código Interno
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: MAT-01"
+                    value={novoMaterial.codigo}
+                    onChange={(e) =>
+                      setNovoMaterial({ ...novoMaterial, codigo: e.target.value })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Unidade</label>
-                  <input type="text" value={novoMaterial.unidade} onChange={(e) => setNovoMaterial({ ...novoMaterial, unidade: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm" />
+                  <label className="block text-xs text-amber-400 mb-1">
+                    Código SINAPI
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 00007778"
+                    value={novoMaterial.codigoSinapi}
+                    onChange={(e) =>
+                      setNovoMaterial({
+                        ...novoMaterial,
+                        codigoSinapi: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Unidade
+                  </label>
+                  <input
+                    type="text"
+                    value={novoMaterial.unidade}
+                    onChange={(e) =>
+                      setNovoMaterial({
+                        ...novoMaterial,
+                        unidade: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                  />
                 </div>
               </div>
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Material *</label>
-                <input type="text" required value={novoMaterial.nome} onChange={(e) => setNovoMaterial({ ...novoMaterial, nome: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm" />
+                <label className="block text-xs text-slate-400 mb-1">
+                  Especificação do Material *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={novoMaterial.nome}
+                  onChange={(e) =>
+                    setNovoMaterial({ ...novoMaterial, nome: e.target.value })
+                  }
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                />
               </div>
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Categoria</label>
-                <input type="text" value={novoMaterial.categoria} onChange={(e) => setNovoMaterial({ ...novoMaterial, categoria: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm" />
+                <label className="block text-xs text-slate-400 mb-1">
+                  Categoria
+                </label>
+                <input
+                  type="text"
+                  value={novoMaterial.categoria}
+                  onChange={(e) =>
+                    setNovoMaterial({
+                      ...novoMaterial,
+                      categoria: e.target.value,
+                    })
+                  }
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                />
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Estoque</label>
-                  <input type="number" min="0" value={novoMaterial.quantidade} onChange={(e) => setNovoMaterial({ ...novoMaterial, quantidade: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm" />
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Estoque Inicial
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={novoMaterial.quantidade}
+                    onChange={(e) =>
+                      setNovoMaterial({
+                        ...novoMaterial,
+                        quantidade: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Mínimo</label>
-                  <input type="number" min="0" value={novoMaterial.estoqueMinimo} onChange={(e) => setNovoMaterial({ ...novoMaterial, estoqueMinimo: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm" />
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Estoque Mínimo
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={novoMaterial.estoqueMinimo}
+                    onChange={(e) =>
+                      setNovoMaterial({
+                        ...novoMaterial,
+                        estoqueMinimo: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Preço</label>
-                  <input type="number" step="0.01" min="0" value={novoMaterial.preco} onChange={(e) => setNovoMaterial({ ...novoMaterial, preco: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm" />
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Custo Unit. (R$)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={novoMaterial.preco}
+                    onChange={(e) =>
+                      setNovoMaterial({ ...novoMaterial, preco: e.target.value })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                  />
                 </div>
               </div>
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
-                <button type="button" onClick={() => setModalNovoMaterial(false)} className="px-4 py-2 bg-slate-800 rounded-xl text-sm">Cancelar</button>
-                <button type="submit" className="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold">Salvar</button>
+                <button
+                  type="button"
+                  onClick={() => setModalNovoMaterial(false)}
+                  className="px-4 py-2 bg-slate-800 rounded-xl text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold"
+                >
+                  Salvar
+                </button>
               </div>
             </form>
           </div>
@@ -843,77 +1277,170 @@ export default function App() {
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h2 className="text-lg font-bold">Entrada Rápida</h2>
-              <button onClick={() => setModalEntradaRapida(false)} className="text-slate-400 hover:text-white"><X className="w-5 h-5"/></button>
+              <button
+                onClick={() => setModalEntradaRapida(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
             <form onSubmit={handleEntradaRapida} className="space-y-4">
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Material</label>
-                <select required value={entradaMaterialId} onChange={(e) => setEntradaMaterialId(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm">
+                <label className="block text-xs text-slate-400 mb-1">
+                  Material
+                </label>
+                <select
+                  required
+                  value={entradaMaterialId}
+                  onChange={(e) => setEntradaMaterialId(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm"
+                >
                   <option value="">-- Escolha --</option>
-                  {materiais.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                  {materiais.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.nome}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Qtd Adicionar</label>
-                <input type="number" min="1" required value={entradaQtd} onChange={(e) => setEntradaQtd(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm" />
+                <label className="block text-xs text-slate-400 mb-1">
+                  Qtd Adicionar
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={entradaQtd}
+                  onChange={(e) => setEntradaQtd(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                />
               </div>
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
-                <button type="button" onClick={() => setModalEntradaRapida(false)} className="px-4 py-2 bg-slate-800 rounded-xl text-sm">Cancelar</button>
-                <button type="submit" className="px-5 py-2 bg-emerald-600 text-white rounded-xl text-sm font-semibold">Confirmar</button>
+                <button
+                  type="button"
+                  onClick={() => setModalEntradaRapida(false)}
+                  className="px-4 py-2 bg-slate-800 rounded-xl text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-emerald-600 text-white rounded-xl text-sm font-semibold"
+                >
+                  Confirmar
+                </button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* MODAL 3: NOVO PEDIDO E ROMANEIO (COM DROPDOWN) */}
+      {/* MODAL 3: NOVO PEDIDO E ROMANEIO (SEM VALORES FINANCEIROS) */}
       {modalNovoPedido && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full p-6 space-y-5 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div>
-                <h2 className="text-lg font-bold">Emitir Romaneio</h2>
+                <h2 className="text-lg font-bold">Emitir Romaneio de Saída</h2>
+                <p className="text-xs text-slate-400">
+                  Selecione o destino e as quantidades para abater do estoque
+                </p>
               </div>
-              <button onClick={() => setModalNovoPedido(false)} className="text-slate-400 hover:text-white"><X className="w-5 h-5"/></button>
+              <button
+                onClick={() => setModalNovoPedido(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <form onSubmit={handleEmitirPedido} className="space-y-4 overflow-y-auto pr-1 flex-1">
+            <form
+              onSubmit={handleEmitirPedido}
+              className="space-y-4 overflow-y-auto pr-1 flex-1"
+            >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Requerente / Destino *</label>
-                  <select required value={requerente} onChange={(e) => setRequerente(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm">
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Requerente / Destino *
+                  </label>
+                  <select
+                    required
+                    value={requerente}
+                    onChange={(e) => setRequerente(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm"
+                  >
                     {LISTA_REQUERENTES.map((req, idx) => (
-                      <option key={idx} value={req}>{req}</option>
+                      <option key={idx} value={req}>
+                        {req}
+                      </option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Autorizado por *</label>
-                  <input type="text" required value={autorizacao} onChange={(e) => setAutorizacao(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm" />
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Autorizado por *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={autorizacao}
+                    onChange={(e) => setAutorizacao(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm"
+                  />
                 </div>
               </div>
 
               <div className="border border-slate-800 rounded-xl overflow-hidden">
                 <div className="bg-slate-950 px-4 py-2.5 text-xs font-semibold uppercase text-slate-400 flex justify-between">
-                  <span>Materiais</span>
-                  <span>Selecionados: {itensSelecionados.length}</span>
+                  <span>Materiais Disponíveis</span>
+                  <span>Itens marcados: {itensSelecionados.length}</span>
                 </div>
                 <div className="max-h-72 overflow-y-auto divide-y divide-slate-800">
                   {materiais.map((mat) => {
-                    const itemMarcado = itensSelecionados.find((i) => i.id === mat.id);
+                    const itemMarcado = itensSelecionados.find(
+                      (i) => i.id === mat.id
+                    );
                     const saldo = Number(mat.quantidade || 0);
                     return (
-                      <div key={mat.id} className={`flex items-center justify-between px-4 py-3 text-sm ${itemMarcado ? "bg-blue-950/30" : "hover:bg-slate-800/40"} ${saldo <= 0 ? "opacity-50" : ""}`}>
-                        <button type="button" disabled={saldo <= 0} onClick={() => toggleSelecaoMaterial(mat)} className="flex items-center gap-3 text-left flex-1">
-                          {itemMarcado ? <CheckSquare className="w-5 h-5 text-blue-400" /> : <Square className="w-5 h-5 text-slate-500" />}
+                      <div
+                        key={mat.id}
+                        className={`flex items-center justify-between px-4 py-3 text-sm ${
+                          itemMarcado
+                            ? "bg-blue-950/30"
+                            : "hover:bg-slate-800/40"
+                        } ${saldo <= 0 ? "opacity-50" : ""}`}
+                      >
+                        <button
+                          type="button"
+                          disabled={saldo <= 0}
+                          onClick={() => toggleSelecaoMaterial(mat)}
+                          className="flex items-center gap-3 text-left flex-1"
+                        >
+                          {itemMarcado ? (
+                            <CheckSquare className="w-5 h-5 text-blue-400" />
+                          ) : (
+                            <Square className="w-5 h-5 text-slate-500" />
+                          )}
                           <div>
                             <p className="font-medium text-white">{mat.nome}</p>
-                            <p className="text-xs text-slate-400">Saldo: {saldo} | R$ {Number(mat.preco || 0).toFixed(2)}</p>
+                            <p className="text-xs text-slate-400">
+                              Saldo disponível: {saldo} {mat.unidade || "UN"}
+                            </p>
                           </div>
                         </button>
                         {itemMarcado && (
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-slate-400">Qtd:</span>
-                            <input type="number" min="1" max={saldo} value={itemMarcado.qtdPedido} onChange={(e) => alterarQtdPedido(mat.id, e.target.value)} className="w-24 bg-slate-950 border border-blue-500/50 rounded-lg px-2.5 py-1 text-right text-sm" />
+                            <input
+                              type="number"
+                              min="1"
+                              max={saldo}
+                              value={itemMarcado.qtdPedido}
+                              onChange={(e) =>
+                                alterarQtdPedido(mat.id, e.target.value)
+                              }
+                              className="w-24 bg-slate-950 border border-blue-500/50 rounded-lg px-2.5 py-1 text-right text-sm"
+                            />
                           </div>
                         )}
                       </div>
@@ -923,15 +1450,119 @@ export default function App() {
               </div>
 
               <div className="flex items-center justify-between pt-4 border-t border-slate-800">
-                <div className="text-sm">Total estimado: <strong className="text-emerald-400">R$ {itensSelecionados.reduce((acc, i) => acc + Number(i.qtdPedido) * Number(i.precoUnitario || 0), 0).toFixed(2)}</strong></div>
+                <div className="text-sm text-slate-400">
+                  Total de itens selecionados:{" "}
+                  <strong className="text-white">
+                    {itensSelecionados.length}
+                  </strong>
+                </div>
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => setModalNovoPedido(false)} className="px-4 py-2 bg-slate-800 rounded-xl text-sm">Cancelar</button>
-                  <button type="submit" disabled={processandoPedido} className="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setModalNovoPedido(false)}
+                    className="px-4 py-2 bg-slate-800 rounded-xl text-sm"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={processandoPedido}
+                    className="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm flex items-center gap-2"
+                  >
                     <Printer className="w-4 h-4" /> Emitir Romaneio
                   </button>
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: ATUALIZAÇÃO MENSAL DE PREÇOS PELA TABELA SINAPI (SC) */}
+      {modalSinapi && (
+        <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h2 className="text-lg font-bold text-amber-400">
+                  Indexador de Preços SINAPI (Santa Catarina)
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Atualize os custos unitários mês a mês via Planilha Oficial Caixa/IBGE ou Variação Mensal
+                </p>
+              </div>
+              <button
+                onClick={() => setModalSinapi(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">
+                  Mês/Ano de Referência SINAPI-SC
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: 10/2026"
+                  value={mesReferenciaSinapi}
+                  onChange={(e) => setMesReferenciaSinapi(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                />
+              </div>
+
+              {/* OPÇÃO A: Importar CSV SINAPI por Código */}
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
+                <h3 className="text-sm font-semibold text-white">
+                  Opção 1: Importar Planilha de Insumos SINAPI-SC (.CSV)
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Envie o arquivo CSV da tabela de insumos SINAPI-SC (com colunas Código SINAPI e Preço). Todos os materiais do estoque com Código SINAPI preenchido serão atualizados.
+                </p>
+                <label className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-semibold cursor-pointer transition mt-2">
+                  <Upload className="w-4 h-4" />
+                  Selecionar Arquivo CSV SINAPI
+                  <input
+                    type="file"
+                    accept=".csv,.txt"
+                    onChange={handleImportarCSVSinapi}
+                    disabled={processandoSinapi}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              {/* OPÇÃO B: Reajuste Percentual Mensal SINAPI/IBGE */}
+              <form
+                onSubmit={handleReajustePercentualSinapi}
+                className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3"
+              >
+                <h3 className="text-sm font-semibold text-white">
+                  Opção 2: Aplicar Índice de Variação Mensal SINAPI/SC (%)
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Reajusta linearmente o custo unitário de todos os itens cadastrados pelo índice oficial do mês divulgado pelo IBGE/Caixa.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Ex: 0,48 (para +0,48%)"
+                    value={percentualSinapi}
+                    onChange={(e) => setPercentualSinapi(e.target.value)}
+                    className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                  />
+                  <button
+                    type="submit"
+                    disabled={processandoSinapi}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold"
+                  >
+                    Aplicar Índice
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}
