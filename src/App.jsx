@@ -71,100 +71,69 @@ const estiloLogoBranca = {
 };
 
 // ============================================================================
-// BASE INICIAL DE INSUMOS SINAPI/SC (Infraestrutura, Drenagem e Pavimentação)
-// Pode ser expandida a qualquer momento importando o CSV oficial da Caixa/SC
+// BASE NATIVA DE INSUMOS SINAPI/SC (Infraestrutura, Drenagem, Pavimentação, Obras)
+// Chave normalizada (sem zeros à esquerda) para busca instantânea exata
 // ============================================================================
-const CATALOGO_SINAPI_SC_PADRAO = {
-  "00000370": {
-    nome: "AREIA MEDIA - POSTO JAZIDA/FORNECEDOR (RETIRADO NA JAZIDA, SEM TRANSPORTE)",
-    unidade: "M3",
-    preco: 115.0,
-    categoria: "Agregados / Infraestrutura",
-  },
-  "00004721": {
-    nome: "PEDRA BRITADA N. 1 (9,5 A 19 MM) POSTO PEDREIRA/FORNECEDOR, SEM FRETE",
-    unidade: "M3",
-    preco: 98.5,
-    categoria: "Agregados / Infraestrutura",
-  },
-  "00004718": {
-    nome: "PEDRA BRITADA N. 2 (19 A 38 MM) POSTO PEDREIRA/FORNECEDOR, SEM FRETE",
-    unidade: "M3",
-    preco: 96.0,
-    categoria: "Agregados / Infraestrutura",
-  },
-  "00001379": {
-    nome: "CIMENTO PORTLAND COMPOSTO CP II-32",
-    unidade: "KG",
-    preco: 0.78,
-    categoria: "Aglomerantes / Alvenaria",
-  },
-  "00007778": {
-    nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS1, COM ENCAIXE PONTA E BOLSA, DN 400 MM",
-    unidade: "M",
-    preco: 94.2,
-    categoria: "Infraestrutura / Drenagem",
-  },
-  "00007781": {
-    nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS1, COM ENCAIXE PONTA E BOLSA, DN 600 MM",
-    unidade: "M",
-    preco: 168.4,
-    categoria: "Infraestrutura / Drenagem",
-  },
-  "00007762": {
-    nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-1, COM ENCAIXE PONTA E BOLSA, DN 800 MM",
-    unidade: "M",
-    preco: 342.0,
-    categoria: "Infraestrutura / Drenagem",
-  },
-  "00007765": {
-    nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-1, COM ENCAIXE PONTA E BOLSA, DN 1000 MM",
-    unidade: "M",
-    preco: 495.0,
-    categoria: "Infraestrutura / Drenagem",
-  },
-  "00004059": {
-    nome: "MEIO-FIO OU GUIA DE CONCRETO, PRE-MOLDADO, COMP 1 M, 30 X 15/12 CM",
-    unidade: "M",
-    preco: 42.8,
-    categoria: "Pavimentação / Urbanismo",
-  },
-  "00000685": {
-    nome: "BLOCO DE CONCRETO ESTRUTURAL 14 X 19 X 39 CM, FBK 4,5 MPA (NBR 6136)",
-    unidade: "UN",
-    preco: 4.35,
-    categoria: "Aglomerantes / Alvenaria",
-  },
-  "00007258": {
-    nome: "TIJOLO CERAMICO MACICO 5 X 10 X 20 CM",
-    unidade: "UN",
-    preco: 0.95,
-    categoria: "Aglomerantes / Alvenaria",
-  },
-  "00001518": {
-    nome: "CONCRETO ASFALTICO USINADO A QUENTE (CBUQ) PARA CAPA DE ROLAMENTO",
-    unidade: "T",
-    preco: 485.0,
-    categoria: "Pavimentação / Urbanismo",
-  },
-  "00002705": {
-    nome: "EMULSAO ASFALTICA PARA IMPRIMACAO / PINTURA DE LIGACAO RR-1C",
-    unidade: "KG",
-    preco: 4.9,
-    categoria: "Pavimentação / Urbanismo",
-  },
-  "00043132": {
-    nome: "TAMPÃO DE FERRO FUNDIDO DÚCTIL PARA POÇO DE VISITA, ARTICULADO, CLASSE D400, DN 600 MM",
-    unidade: "UN",
-    preco: 620.0,
-    categoria: "Infraestrutura / Drenagem",
-  },
-  "00003146": {
-    nome: "GRELHA DE FERRO FUNDIDO PARA BOCA DE LOBO, 30 X 90 CM",
-    unidade: "UN",
-    preco: 385.0,
-    categoria: "Infraestrutura / Drenagem",
-  },
+const CATALOGO_SINAPI_SC_NATIVO = {
+  // AGREGADOS E SOLOS
+  "366": { codigo: "00000366", nome: "AREIA FINA - POSTO JAZIDA/FORNECEDOR (SEM TRANSPORTE)", unidade: "M3", preco: 108.00, categoria: "Agregados / Infraestrutura" },
+  "367": { codigo: "00000367", nome: "AREIA GROSSA - POSTO JAZIDA/FORNECEDOR (SEM TRANSPORTE)", unidade: "M3", preco: 118.50, categoria: "Agregados / Infraestrutura" },
+  "370": { codigo: "00000370", nome: "AREIA MEDIA - POSTO JAZIDA/FORNECEDOR (SEM TRANSPORTE)", unidade: "M3", preco: 115.00, categoria: "Agregados / Infraestrutura" },
+  "4720": { codigo: "00004720", nome: "PEDRA BRITADA N. 0 OU PEDRISCO (4,8 A 9,5 MM)", unidade: "M3", preco: 102.00, categoria: "Agregados / Infraestrutura" },
+  "4721": { codigo: "00004721", nome: "PEDRA BRITADA N. 1 (9,5 A 19 MM) POSTO PEDREIRA/FORNECEDOR", unidade: "M3", preco: 98.50, categoria: "Agregados / Infraestrutura" },
+  "4718": { codigo: "00004718", nome: "PEDRA BRITADA N. 2 (19 A 38 MM) POSTO PEDREIRA/FORNECEDOR", unidade: "M3", preco: 96.00, categoria: "Agregados / Infraestrutura" },
+  "4719": { codigo: "00004719", nome: "PEDRA BRITADA N. 3 (38 A 76 MM) POSTO PEDREIRA/FORNECEDOR", unidade: "M3", preco: 94.00, categoria: "Agregados / Infraestrutura" },
+  "4729": { codigo: "00004729", nome: "PO DE PEDRA (POSTO PEDREIRA/FORNECEDOR, SEM FRETE)", unidade: "M3", preco: 89.00, categoria: "Agregados / Infraestrutura" },
+  "4730": { codigo: "00004730", nome: "PEDRA DE MAO OU PEDRA RACHAO PARA ARRIMO/FUNDACAO", unidade: "M3", preco: 88.50, categoria: "Agregados / Infraestrutura" },
+  "680": { codigo: "00000680", nome: "BRITA GRADUADA SIMPLES (BGS)", unidade: "M3", preco: 112.00, categoria: "Pavimentação / Urbanismo" },
+
+  // CIMENTO, CAL, ARGAMASSA E CONCRETO
+  "1379": { codigo: "00001379", nome: "CIMENTO PORTLAND COMPOSTO CP II-32", unidade: "KG", preco: 0.78, categoria: "Aglomerantes / Alvenaria" },
+  "1377": { codigo: "00001377", nome: "CIMENTO PORTLAND DE ALTA RESISTENCIA INICIAL CP V-ARI", unidade: "KG", preco: 0.89, categoria: "Aglomerantes / Alvenaria" },
+  "1106": { codigo: "00001106", nome: "CAL HIDRATADA CH-I PARA ARGAMASSAS", unidade: "KG", preco: 0.92, categoria: "Aglomerantes / Alvenaria" },
+  "1524": { codigo: "00001524", nome: "CONCRETO USINADO BOMBEAVEL, FCK 20 MPA, SLUMP 100 +/- 20 MM", unidade: "M3", preco: 465.00, categoria: "Concretos / Estruturas" },
+  "1525": { codigo: "00001525", nome: "CONCRETO USINADO BOMBEAVEL, FCK 25 MPA, SLUMP 100 +/- 20 MM", unidade: "M3", preco: 492.00, categoria: "Concretos / Estruturas" },
+  "1527": { codigo: "00001527", nome: "CONCRETO USINADO BOMBEAVEL, FCK 30 MPA, SLUMP 100 +/- 20 MM", unidade: "M3", preco: 525.00, categoria: "Concretos / Estruturas" },
+
+  // DRENAGEM - TUBOS DE CONCRETO E PEAD
+  "7777": { codigo: "00007777", nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS1, DN 300 MM", unidade: "M", preco: 68.50, categoria: "Infraestrutura / Drenagem" },
+  "7778": { codigo: "00007778", nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS1, DN 400 MM", unidade: "M", preco: 94.20, categoria: "Infraestrutura / Drenagem" },
+  "7780": { codigo: "00007780", nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS1, DN 500 MM", unidade: "M", preco: 132.00, categoria: "Infraestrutura / Drenagem" },
+  "7781": { codigo: "00007781", nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS1, DN 600 MM", unidade: "M", preco: 168.40, categoria: "Infraestrutura / Drenagem" },
+  "7761": { codigo: "00007761", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-1, DN 600 MM", unidade: "M", preco: 215.00, categoria: "Infraestrutura / Drenagem" },
+  "7762": { codigo: "00007762", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-1, DN 800 MM", unidade: "M", preco: 342.00, categoria: "Infraestrutura / Drenagem" },
+  "7765": { codigo: "00007765", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-1, DN 1000 MM", unidade: "M", preco: 495.00, categoria: "Infraestrutura / Drenagem" },
+  "7768": { codigo: "00007768", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-1, DN 1200 MM", unidade: "M", preco: 685.00, categoria: "Infraestrutura / Drenagem" },
+  "37448": { codigo: "00037448", nome: "TUBO PEAD CORRUGADO DUPLA PAREDE PARA DRENAGEM PLUVIAL DN 400 MM", unidade: "M", preco: 145.00, categoria: "Infraestrutura / Drenagem" },
+  "37449": { codigo: "00037449", nome: "TUBO PEAD CORRUGADO DUPLA PAREDE PARA DRENAGEM PLUVIAL DN 600 MM", unidade: "M", preco: 310.00, categoria: "Infraestrutura / Drenagem" },
+  "40888": { codigo: "00040888", nome: "MANTA GEOTEXTIL NAO TECIDO AGULHADO DE FILAMENTOS CONTINUOS 100% POLIESTER (200 G/M2)", unidade: "M2", preco: 8.90, categoria: "Infraestrutura / Drenagem" },
+
+  // TAMPÕES, GRELHAS E ARTEFATOS DE DRENAGEM
+  "43132": { codigo: "00043132", nome: "TAMPAO DE FERRO FUNDIDO DUCTIL PARA POCO DE VISITA, CLASSE D400, DN 600 MM", unidade: "UN", preco: 620.00, categoria: "Infraestrutura / Drenagem" },
+  "3146": { codigo: "00003146", nome: "GRELHA DE FERRO FUNDIDO PARA BOCA DE LOBO, 30 X 90 CM", unidade: "UN", preco: 385.00, categoria: "Infraestrutura / Drenagem" },
+  "10908": { codigo: "00010908", nome: "GRELHA DE CONCRETO ARMADO PARA BOCA DE LOBO 40 X 100 CM", unidade: "UN", preco: 142.00, categoria: "Infraestrutura / Drenagem" },
+
+  // PAVIMENTAÇÃO, ASFALTO E URBANISMO
+  "1518": { codigo: "00001518", nome: "CONCRETO ASFALTICO USINADO A QUENTE (CBUQ) PARA CAPA DE ROLAMENTO", unidade: "T", preco: 485.00, categoria: "Pavimentação / Urbanismo" },
+  "2705": { codigo: "00002705", nome: "EMULSAO ASFALTICA PARA IMPRIMACAO / PINTURA DE LIGACAO RR-1C", unidade: "KG", preco: 4.90, categoria: "Pavimentação / Urbanismo" },
+  "2707": { codigo: "00002707", nome: "ASFALTO DILUIDO CM-30 PARA IMPRIMACAO", unidade: "KG", preco: 6.45, categoria: "Pavimentação / Urbanismo" },
+  "4059": { codigo: "00004059", nome: "MEIO-FIO OU GUIA DE CONCRETO, PRE-MOLDADO, COMP 1 M, 30 X 15/12 CM", unidade: "M", preco: 42.80, categoria: "Pavimentação / Urbanismo" },
+  "689": { codigo: "00000689", nome: "BLOCO INTERTRAVADO DE CONCRETO (PAVER) 10 X 20 CM, ESPESSURA 6 CM, 35 MPA", unidade: "M2", preco: 54.00, categoria: "Pavimentação / Urbanismo" },
+  "690": { codigo: "00000690", nome: "BLOCO INTERTRAVADO DE CONCRETO (PAVER) 10 X 20 CM, ESPESSURA 8 CM, 35 MPA", unidade: "M2", preco: 64.50, categoria: "Pavimentação / Urbanismo" },
+  "36154": { codigo: "00036154", nome: "PISO PODOTATIL DE CONCRETO (DIRECIONAL OU ALERTA) 40 X 40 CM", unidade: "M2", preco: 78.00, categoria: "Pavimentação / Urbanismo" },
+
+  // ALVENARIA, BLOCOS E TIJOLOS
+  "685": { codigo: "00000685", nome: "BLOCO DE CONCRETO ESTRUTURAL 14 X 19 X 39 CM, FBK 4,5 MPA", unidade: "UN", preco: 4.35, categoria: "Aglomerantes / Alvenaria" },
+  "656": { codigo: "00000656", nome: "BLOCO DE CONCRETO DE VEDACAO 14 X 19 X 39 CM", unidade: "UN", preco: 3.65, categoria: "Aglomerantes / Alvenaria" },
+  "7258": { codigo: "00007258", nome: "TIJOLO CERAMICO MACICO 5 X 10 X 20 CM", unidade: "UN", preco: 0.95, categoria: "Aglomerantes / Alvenaria" },
+  "7266": { codigo: "00007266", nome: "BLOCO CERAMICO (TIJOLO FURADO) 9 X 19 X 19 CM", unidade: "UN", preco: 1.35, categoria: "Aglomerantes / Alvenaria" },
+
+  // AÇO E ARMADURAS
+  "32": { codigo: "00000032", nome: "ACO CA-50, 8,0 MM, VERGALHAO", unidade: "KG", preco: 7.95, categoria: "Aço / Estruturas" },
+  "34": { codigo: "00000034", nome: "ACO CA-50, 10,0 MM (3/8), VERGALHAO", unidade: "KG", preco: 7.75, categoria: "Aço / Estruturas" },
+  "35": { codigo: "00000035", nome: "ACO CA-50, 12,5 MM (1/2), VERGALHAO", unidade: "KG", preco: 7.60, categoria: "Aço / Estruturas" },
+  "43": { codigo: "00000043", nome: "ACO CA-60, 5,0 MM, VERGALHAO", unidade: "KG", preco: 8.15, categoria: "Aço / Estruturas" },
+  "7156": { codigo: "00007156", nome: "TELA DE ACO SOLDADA NERVURADA CA-60, Q-138, MALHA 10 X 10 CM", unidade: "M2", preco: 26.80, categoria: "Aço / Estruturas" },
 };
 
 // Lista oficial de Requerentes / Destinos
@@ -190,8 +159,12 @@ const LISTA_REQUERENTES = [
   "DIRETORIA DE SERVIÇOS",
 ];
 
-// Normaliza o código SINAPI (remove caracteres não numéricos e testa com e sem zeros à esquerda)
-const normalizarCodigoSinapi = (valor) => String(valor || "").replace(/\D/g, "").trim();
+// Extrai a chave numérica sem zeros à esquerda (ex: "00007778" -> "7778")
+const extrairChaveNumerica = (valor) => {
+  const apenasDigitos = String(valor || "").replace(/\D/g, "");
+  if (!apenasDigitos) return "";
+  return String(Number(apenasDigitos));
+};
 
 export default function App() {
   // Estados de Autenticação
@@ -199,10 +172,21 @@ export default function App() {
   const [verificandoAuth, setVerificandoAuth] = useState(true);
   const [lembrarDeMim, setLembrarDeMim] = useState(true);
 
-  // Estados principais sincronizados com o Firestore
+  // Estados principais sincronizados com o Firestore + Catálogo SINAPI/SC
   const [materiais, setMateriais] = useState([]);
   const [romaneios, setRomaneios] = useState([]);
-  const [catalogoSinapi, setCatalogoSinapi] = useState(CATALOGO_SINAPI_SC_PADRAO);
+  const [catalogoSinapi, setCatalogoSinapi] = useState(() => {
+    try {
+      const salvoLocal = localStorage.getItem("catalogo_sinapi_sc_v1");
+      if (salvoLocal) {
+        return { ...CATALOGO_SINAPI_SC_NATIVO, ...JSON.parse(salvoLocal) };
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return CATALOGO_SINAPI_SC_NATIVO;
+  });
+
   const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState("estoque"); // "estoque" | "romaneios"
   const [busca, setBusca] = useState("");
@@ -215,7 +199,7 @@ export default function App() {
   const [modalNovoPedido, setModalNovoPedido] = useState(false);
   const [modalSinapi, setModalSinapi] = useState(false);
 
-  // Estado do formulário de Novo Material (SOMENTE Código SINAPI, sem Código Interno)
+  // Estado do formulário de Novo Material (SOMENTE Código SINAPI)
   const [novoMaterial, setNovoMaterial] = useState({
     codigoSinapi: "",
     nome: "",
@@ -256,7 +240,6 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
 
-    // 2.1. Sincroniza estoque de materiais
     const qMateriais = query(collection(db, "materiais"));
     const unsubscribeMateriais = onSnapshot(
       qMateriais,
@@ -275,7 +258,6 @@ export default function App() {
       }
     );
 
-    // 2.2. Sincroniza histórico de romaneios
     const qRomaneios = query(
       collection(db, "romaneios"),
       orderBy("dataEmissao", "desc")
@@ -292,59 +274,28 @@ export default function App() {
       (erro) => console.error("Erro ao sincronizar romaneios:", erro)
     );
 
-    // 2.3. Sincroniza catálogo SINAPI/SC salvo no Firestore (quando importado via CSV)
-    const qCatalogo = query(collection(db, "catalogo_sinapi_sc"));
-    const unsubscribeCatalogo = onSnapshot(
-      qCatalogo,
-      (snapshot) => {
-        if (!snapshot.empty) {
-          const mapaRemoto = { ...CATALOGO_SINAPI_SC_PADRAO };
-          snapshot.docs.forEach((docSnap) => {
-            mapaRemoto[docSnap.id] = docSnap.data();
-          });
-          setCatalogoSinapi(mapaRemoto);
-        }
-      },
-      (erro) => console.error("Erro ao carregar catálogo SINAPI/SC:", erro)
-    );
-
     return () => {
       unsubscribeMateriais();
       unsubscribeRomaneios();
-      unsubscribeCatalogo();
     };
   }, [user]);
 
   // ==========================================================================
-  // 3. BUSCA AUTOMÁTICA NA TABELA SINAPI/SC AO DIGITAR O CÓDIGO
+  // 3. BUSCA E AUTOPREENCHIMENTO IMEDIATO PELA TABELA SINAPI/SC
   // ==========================================================================
-  const buscarInsumoNaTabelaSinapi = (codigoDigitado) => {
-    const limpo = normalizarCodigoSinapi(codigoDigitado);
-    if (!limpo) return null;
-
-    const comOitoDigitos = limpo.padStart(8, "0");
-    const semZerosEsquerda = String(Number(limpo));
-
-    return (
-      catalogoSinapi[limpo] ||
-      catalogoSinapi[comOitoDigitos] ||
-      catalogoSinapi[semZerosEsquerda] ||
-      null
-    );
-  };
-
   const handleChangeCodigoSinapi = (valorDigitado) => {
-    const itemSinapi = buscarInsumoNaTabelaSinapi(valorDigitado);
+    const chaveNum = extrairChaveNumerica(valorDigitado);
+    const itemExato = chaveNum ? catalogoSinapi[chaveNum] : null;
 
-    if (itemSinapi) {
+    if (itemExato) {
       setInsumoEncontrado(true);
       setNovoMaterial((prev) => ({
         ...prev,
         codigoSinapi: valorDigitado,
-        nome: itemSinapi.nome,
-        unidade: itemSinapi.unidade,
-        preco: String(itemSinapi.preco),
-        categoria: itemSinapi.categoria || prev.categoria,
+        nome: itemExato.nome,
+        unidade: itemExato.unidade,
+        preco: String(itemExato.preco),
+        categoria: itemExato.categoria || prev.categoria,
       }));
     } else {
       setInsumoEncontrado(false);
@@ -354,6 +305,38 @@ export default function App() {
       }));
     }
   };
+
+  // Selecionar um item clicando na lista de sugestões abaixo do campo
+  const selecionarSugestaoSinapi = (item) => {
+    setInsumoEncontrado(true);
+    setNovoMaterial((prev) => ({
+      ...prev,
+      codigoSinapi: item.codigo,
+      nome: item.nome,
+      unidade: item.unidade,
+      preco: String(item.preco),
+      categoria: item.categoria || prev.categoria,
+    }));
+  };
+
+  // Lista de sugestões dinâmicas ao digitar código parcial ou nome no campo Código SINAPI
+  const sugestoesSinapi = useMemo(() => {
+    const termo = (novoMaterial.codigoSinapi || "").trim().toLowerCase();
+    if (!termo || insumoEncontrado) return [];
+    const termoNumerico = extrairChaveNumerica(termo);
+
+    return Object.values(catalogoSinapi)
+      .filter((item) => {
+        const codStr = (item.codigo || "").toLowerCase();
+        const nomeStr = (item.nome || "").toLowerCase();
+        return (
+          codStr.includes(termo) ||
+          (termoNumerico && codStr.includes(termoNumerico)) ||
+          nomeStr.includes(termo)
+        );
+      })
+      .slice(0, 6);
+  }, [novoMaterial.codigoSinapi, catalogoSinapi, insumoEncontrado]);
 
   // ==========================================================================
   // 4. FUNÇÕES DE LOGIN (COM "LEMBRAR DE MIM") E LOGOUT
@@ -416,22 +399,23 @@ export default function App() {
   }, [materiais, busca]);
 
   // ==========================================================================
-  // 6. CADASTRO POR CÓDIGO SINAPI, ENTRADA RÁPIDA E ATUALIZAÇÃO SINAPI/SC
+  // 6. CADASTRO POR CÓDIGO SINAPI, ENTRADA RÁPIDA E IMPORTAÇÃO SINAPI/SC
   // ==========================================================================
   const handleCadastrarMaterial = async (e) => {
     e.preventDefault();
-    const codFinal = normalizarCodigoSinapi(novoMaterial.codigoSinapi).padStart(
-      8,
-      "0"
+    const apenasNumeros = String(novoMaterial.codigoSinapi || "").replace(
+      /\D/g,
+      ""
     );
+    const codFinal = apenasNumeros
+      ? apenasNumeros.padStart(8, "0")
+      : novoMaterial.codigoSinapi.trim();
 
-    if (!novoMaterial.codigoSinapi.trim()) {
+    if (!codFinal) {
       return alert("Digite o Código SINAPI do material.");
     }
     if (!novoMaterial.nome.trim()) {
-      return alert(
-        "Código SINAPI não localizado automaticamente. Importe a planilha SINAPI/SC atualizada ou preencha a descrição."
-      );
+      return alert("Informe ou selecione a descrição do insumo SINAPI/SC.");
     }
 
     try {
@@ -447,6 +431,23 @@ export default function App() {
         criadoPor: user.email,
         criadoEm: serverTimestamp(),
       });
+
+      // Também adiciona ao catálogo local caso seja um código novo digitado manualmente
+      const chave = extrairChaveNumerica(codFinal);
+      if (chave && !catalogoSinapi[chave]) {
+        const atualizado = {
+          ...catalogoSinapi,
+          [chave]: {
+            codigo: codFinal,
+            nome: novoMaterial.nome.trim(),
+            unidade: novoMaterial.unidade.trim() || "UN",
+            preco: Number(String(novoMaterial.preco).replace(",", ".") || 0),
+            categoria: novoMaterial.categoria,
+          },
+        };
+        setCatalogoSinapi(atualizado);
+        localStorage.setItem("catalogo_sinapi_sc_v1", JSON.stringify(atualizado));
+      }
 
       setNovoMaterial({
         codigoSinapi: "",
@@ -549,17 +550,19 @@ export default function App() {
     }
   };
 
-  // 6.2. Importar arquivo CSV da tabela SINAPI/SC (alimenta o autopreenchimento e atualiza o estoque)
+  // 6.2. Leitor Universal de CSV da Tabela Oficial de Insumos SINAPI/SC (Caixa)
   const handleImportarCSVSinapi = async (evento) => {
     const arquivo = evento.target.files?.[0];
     if (!arquivo) return;
 
     setProcessandoSinapi(true);
     try {
-      const texto = await arquivo.text();
+      // Lê o buffer em ISO-8859-1 / UTF-8 para suportar acentos do Excel da Caixa
+      const buffer = await arquivo.arrayBuffer();
+      const decoder = new TextDecoder("iso-8859-1");
+      const texto = decoder.decode(buffer);
       const linhas = texto.split(/\r?\n/);
 
-      // Suporta CSV com colunas: Codigo;Descricao;Unidade;Preco ou Codigo;Preco
       const novoMapaCatalogo = { ...catalogoSinapi };
       let totalInsumosLidos = 0;
 
@@ -567,27 +570,44 @@ export default function App() {
         const colunas = linha
           .split(/[;\t]/)
           .map((c) => c.replace(/"/g, "").trim())
-          .filter(Boolean);
+          .filter((c) => c !== "");
 
-        if (colunas.length >= 2) {
-          const codLimpo = normalizarCodigoSinapi(colunas[0]);
-          if (codLimpo && codLimpo.length >= 3) {
-            const codPadrao = codLimpo.padStart(8, "0");
-            const possivelPrecoStr = colunas[colunas.length - 1]
-              .replace(/\./g, "")
-              .replace(",", ".");
-            const valorNum = Number(possivelPrecoStr);
+        if (colunas.length >= 3) {
+          // Procura a coluna que contém o código SINAPI (4 a 8 dígitos numéricos)
+          const primeiraColNumerica = colunas[0].replace(/\D/g, "");
+          if (
+            primeiraColNumerica.length >= 1 &&
+            primeiraColNumerica.length <= 8 &&
+            /^\d+$/.test(primeiraColNumerica)
+          ) {
+            const chave = String(Number(primeiraColNumerica));
+            const codPadrao = primeiraColNumerica.padStart(8, "0");
 
-            if (!isNaN(valorNum) && valorNum > 0) {
-              const nomeInsumo =
-                colunas.length >= 3 ? colunas[1] : novoMapaCatalogo[codPadrao]?.nome || `Insumo SINAPI ${codPadrao}`;
-              const unidInsumo =
-                colunas.length >= 4 ? colunas[2] : novoMapaCatalogo[codPadrao]?.unidade || "UN";
+            // Identifica o preço na última coluna numérica da linha
+            let precoEncontrado = 0;
+            for (let i = colunas.length - 1; i >= 1; i--) {
+              const limpo = colunas[i]
+                .replace("R$", "")
+                .replace(/\./g, "")
+                .replace(",", ".")
+                .trim();
+              const num = Number(limpo);
+              if (!isNaN(num) && num > 0 && /\d/.test(limpo)) {
+                precoEncontrado = num;
+                break;
+              }
+            }
 
-              novoMapaCatalogo[codPadrao] = {
-                nome: nomeInsumo,
-                unidade: unidInsumo,
-                preco: valorNum,
+            if (precoEncontrado > 0) {
+              const descricao = colunas[1] || `Insumo SINAPI ${codPadrao}`;
+              const unidade =
+                colunas[2] && colunas[2].length <= 6 ? colunas[2].toUpperCase() : "UN";
+
+              novoMapaCatalogo[chave] = {
+                codigo: codPadrao,
+                nome: descricao,
+                unidade,
+                preco: precoEncontrado,
                 categoria: "Infraestrutura / SINAPI-SC",
               };
               totalInsumosLidos++;
@@ -596,23 +616,36 @@ export default function App() {
         }
       }
 
-      // Atualiza o catálogo em memória imediatamente para o autopreenchimento
-      setCatalogoSinapi(novoMapaCatalogo);
+      if (totalInsumosLidos === 0) {
+        alert(
+          "Não foi possível identificar linhas de insumos no arquivo. Salve a planilha SINAPI/SC do Excel como 'CSV (separado por ponto e vírgula)'."
+        );
+        setProcessandoSinapi(false);
+        return;
+      }
 
-      // Atualiza no Firestore o preço de todos os materiais já cadastrados no estoque
+      // Salva no estado e no navegador para autopreenchimento instantâneo de todos os códigos
+      setCatalogoSinapi(novoMapaCatalogo);
+      try {
+        localStorage.setItem(
+          "catalogo_sinapi_sc_v1",
+          JSON.stringify(novoMapaCatalogo)
+        );
+      } catch (e) {
+        console.warn("Catálogo muito grande para localStorage, mantido em memória.");
+      }
+
+      // Atualiza no Firestore o preço de todos os materiais já existentes no estoque
       const batch = writeBatch(db);
       let estoqueAtualizados = 0;
 
       for (const mat of materiais) {
-        const codMat = normalizarCodigoSinapi(mat.codigoSinapi || mat.codigo).padStart(
-          8,
-          "0"
-        );
-        if (codMat && novoMapaCatalogo[codMat]) {
-          const dadosOficiais = novoMapaCatalogo[codMat];
+        const chaveMat = extrairChaveNumerica(mat.codigoSinapi || mat.codigo);
+        if (chaveMat && novoMapaCatalogo[chaveMat]) {
+          const dadosOficiais = novoMapaCatalogo[chaveMat];
           const matRef = doc(db, "materiais", String(mat.id));
           batch.update(matRef, {
-            codigoSinapi: codMat,
+            codigoSinapi: dadosOficiais.codigo,
             nome: dadosOficiais.nome || mat.nome,
             unidade: dadosOficiais.unidade || mat.unidade,
             preco: dadosOficiais.preco,
@@ -629,7 +662,7 @@ export default function App() {
       }
 
       alert(
-        `Tabela SINAPI/SC (${mesReferenciaSinapi}) carregada!\n• ${totalInsumosLidos} códigos disponíveis para autopreenchimento.\n• ${estoqueAtualizados} materiais do estoque tiveram seus preços atualizados.`
+        `Tabela SINAPI/SC (${mesReferenciaSinapi}) importada com sucesso!\n\n• ${totalInsumosLidos} insumos agora estão disponíveis para autopreenchimento ao digitar o código.\n• ${estoqueAtualizados} materiais do estoque tiveram seus preços atualizados.`
       );
       setModalSinapi(false);
     } catch (erro) {
@@ -675,7 +708,6 @@ export default function App() {
     );
   };
 
-  // PDF do Romaneio exibindo o Código SINAPI e SEM valores financeiros
   const gerarPDFRomaneio = (dadosRomaneio) => {
     const dataFormatada = dadosRomaneio.dataEmissao
       ? new Date(dadosRomaneio.dataEmissao).toLocaleString("pt-BR")
@@ -985,7 +1017,7 @@ export default function App() {
                 Controle de Materiais & Romaneios
               </h1>
               <p className="text-xs text-slate-400">
-                Secretaria de Infraestrutura e Manutenção • Base SINAPI/SC
+                Secretaria de Infraestrutura e Manutenção • Base SINAPI/SC ({Object.keys(catalogoSinapi).length} insumos ativos)
               </p>
             </div>
           </div>
@@ -1036,7 +1068,7 @@ export default function App() {
             onClick={() => setModalSinapi(true)}
             className="flex items-center gap-2 px-4 py-2.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-xl text-sm font-medium transition"
           >
-            <RefreshCw className="w-4 h-4" /> Tabela SINAPI/SC
+            <RefreshCw className="w-4 h-4" /> Tabela SINAPI/SC ({Object.keys(catalogoSinapi).length})
           </button>
           <button
             onClick={() => setModalNovoPedido(true)}
@@ -1130,7 +1162,7 @@ export default function App() {
           )}
         </div>
 
-        {/* ABA ESTOQUE (SOMENTE CÓDIGO SINAPI) */}
+        {/* ABA ESTOQUE */}
         {abaAtiva === "estoque" && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
             <div className="overflow-x-auto">
@@ -1216,7 +1248,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ABA ROMANEIOS (SEM COLUNA DE VALOR TOTAL) */}
+        {/* ABA ROMANEIOS */}
         {abaAtiva === "romaneios" && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
             <div className="overflow-x-auto">
@@ -1299,15 +1331,15 @@ export default function App() {
         )}
       </div>
 
-      {/* MODAL 1: INCLUIR MATERIAL PELO CÓDIGO SINAPI/SC */}
+      {/* MODAL 1: INCLUIR MATERIAL PELO CÓDIGO SINAPI/SC COM AUTOCOMPLETE */}
       {modalNovoMaterial && (
         <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div>
                 <h2 className="text-lg font-bold">Incluir Material (SINAPI/SC)</h2>
                 <p className="text-xs text-slate-400">
-                  Digite o Código SINAPI para puxar descrição, unidade e preço automaticamente
+                  Digite o Código SINAPI (ex: 7778, 370, 4721) ou parte do nome para autopreencher
                 </p>
               </div>
               <button
@@ -1319,32 +1351,63 @@ export default function App() {
             </div>
 
             <form onSubmit={handleCadastrarMaterial} className="space-y-4">
-              {/* Campo Principal: Código SINAPI */}
-              <div className="bg-slate-950 border border-amber-500/40 rounded-xl p-3.5 space-y-2">
+              {/* Campo Principal: Código SINAPI + Lista de Sugestões */}
+              <div className="bg-slate-950 border border-amber-500/40 rounded-xl p-3.5 space-y-2 relative">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-semibold text-amber-400 uppercase">
-                    Código SINAPI (Santa Catarina) *
+                    Código SINAPI (ou pesquise pelo nome) *
                   </label>
                   {insumoEncontrado && (
                     <span className="inline-flex items-center gap-1 text-xs text-emerald-400 font-medium">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Insumo localizado na SINAPI/SC
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Preenchido pela SINAPI/SC
                     </span>
                   )}
                 </div>
+
                 <input
                   type="text"
                   required
                   autoFocus
-                  placeholder="Ex: 00007778, 00000370, 00004721, 00001379..."
+                  placeholder="Digite o código (ex: 7778, 370, 1379) ou nome (ex: tubo, brita)..."
                   value={novoMaterial.codigoSinapi}
                   onChange={(e) => handleChangeCodigoSinapi(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700 focus:border-amber-400 rounded-xl px-3.5 py-2.5 text-base font-mono text-white focus:outline-none"
                 />
+
+                {/* Dropdown de Sugestões Instantâneas SINAPI/SC */}
+                {sugestoesSinapi.length > 0 && (
+                  <div className="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden divide-y divide-slate-800 mt-1 max-h-48 overflow-y-auto shadow-xl">
+                    {sugestoesSinapi.map((item) => (
+                      <button
+                        type="button"
+                        key={item.codigo}
+                        onClick={() => selecionarSugestaoSinapi(item)}
+                        className="w-full text-left px-3 py-2 hover:bg-amber-500/15 transition flex items-center justify-between gap-2"
+                      >
+                        <div className="truncate">
+                          <span className="font-mono text-xs font-bold text-amber-400 mr-2">
+                            {item.codigo}
+                          </span>
+                          <span className="text-xs text-slate-200">
+                            {item.nome}
+                          </span>
+                        </div>
+                        <span className="text-xs font-semibold text-emerald-400 shrink-0">
+                          {item.unidade} • R$ {Number(item.preco).toFixed(2)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 <p className="text-[11px] text-slate-400">
-                  Códigos de teste rápidos: <code className="text-amber-300">00007778</code> (Tubo DN 400),{" "}
-                  <code className="text-amber-300">00000370</code> (Areia Média),{" "}
-                  <code className="text-amber-300">00004721</code> (Brita 1),{" "}
-                  <code className="text-amber-300">00001518</code> (CBUQ)
+                  Exemplos prontos: <code className="text-amber-300">7778</code> (Tubo 400mm),{" "}
+                  <code className="text-amber-300">7781</code> (Tubo 600mm),{" "}
+                  <code className="text-amber-300">370</code> (Areia),{" "}
+                  <code className="text-amber-300">4721</code> (Brita 1),{" "}
+                  <code className="text-amber-300">1379</code> (Cimento),{" "}
+                  <code className="text-amber-300">1518</code> (CBUQ),{" "}
+                  <code className="text-amber-300">4059</code> (Meio-fio)
                 </p>
               </div>
 
@@ -1542,7 +1605,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 3: NOVO PEDIDO E ROMANEIO (SEM VALORES FINANCEIROS) */}
+      {/* MODAL 3: NOVO PEDIDO E ROMANEIO */}
       {modalNovoPedido && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full p-6 space-y-5 max-h-[90vh] flex flex-col">
@@ -1699,7 +1762,7 @@ export default function App() {
                   Tabela Referência de Insumos SINAPI/SC
                 </h2>
                 <p className="text-xs text-slate-400">
-                  Carregue a planilha oficial da Caixa (SC) para autopreencher novos cadastros e atualizar preços do estoque
+                  Atualmente com {Object.keys(catalogoSinapi).length} insumos ativos para autopreenchimento
                 </p>
               </div>
               <button
@@ -1727,10 +1790,10 @@ export default function App() {
               {/* OPÇÃO 1: Importar CSV SINAPI/SC */}
               <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
                 <h3 className="text-sm font-semibold text-white">
-                  1. Carregar Planilha Oficial de Insumos SINAPI/SC (.CSV)
+                  1. Carregar Planilha Completa de Insumos SINAPI/SC (.CSV)
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Envie o CSV da tabela de insumos SINAPI/SC (`Codigo;Descricao;Unidade;Preco`). Todos os insumos ficam disponíveis para busca por código e os itens do estoque têm seus preços atualizados.
+                  Abra a planilha de Insumos da Caixa (SC) no Excel, escolha <strong>Salvar Como &gt; CSV (separado por vírgulas / ponto e vírgula)</strong> e selecione abaixo. Todos os 5.000+ códigos ficarão salvos no sistema.
                 </p>
                 <label className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-semibold cursor-pointer transition mt-2">
                   <Upload className="w-4 h-4" />
