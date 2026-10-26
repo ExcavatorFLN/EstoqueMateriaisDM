@@ -38,7 +38,6 @@ import {
   RotateCcw,
   Ban,
   LogOut,
-  LogIn,
 } from "lucide-react";
 
 // ============================================================================
@@ -134,7 +133,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!user) return; // Só carrega os dados se estiver logado
+    if (!user) return;
 
     const qMateriais = query(collection(db, "materiais"));
     const unsubscribeMateriais = onSnapshot(
@@ -181,7 +180,7 @@ export default function App() {
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
       console.error("Erro ao fazer login com Google:", error);
-      alert("Erro ao fazer login. Tente novamente.");
+      alert("Erro ao fazer login. Certifique-se de autorizar o domínio no console do Firebase.");
     }
   };
 
@@ -297,7 +296,7 @@ export default function App() {
   };
 
   // ==========================================================================
-  // 6. LÓGICA DE PEDIDOS E PDF
+  // 6. LÓGICA DE PEDIDOS E PDF COM LOGO
   // ==========================================================================
   const toggleSelecaoMaterial = (material) => {
     setItensSelecionados((prev) => {
@@ -364,7 +363,8 @@ export default function App() {
         <title>Romaneio #${dadosRomaneio.numeroRomaneio}</title>
         <style>
           body { font-family: Arial, Helvetica, sans-serif; padding: 28px; color: #111827; }
-          .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #111827; padding-bottom: 14px; margin-bottom: 20px; }
+          .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #111827; padding-bottom: 14px; margin-bottom: 20px; }
+          .logo-pdf { height: 60px; max-width: 250px; object-fit: contain; }
           .meta { background: #f9fafb; border: 1px solid #d1d5db; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; }
           table { width: 100%; border-collapse: collapse; margin-top: 10px; }
           th, td { border: 1px solid #d1d5db; padding: 8px 10px; font-size: 12px; }
@@ -376,21 +376,27 @@ export default function App() {
       </head>
       <body>
         <div class="header">
-          <div>
-            <h2 style="margin: 0; font-size: 20px;">ROMANEIO DE CARGA E SAÍDA DE MATERIAIS</h2>
-            <p style="margin: 4px 0 0 0; font-size: 12px; color: #4b5563;">Sistema de Controle de Pedidos e Estoque</p>
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <img src="/logo-prefeitura.jpg" class="logo-pdf" alt="Prefeitura de Florianópolis" onerror="this.style.display='none'" />
+            <div>
+              <h2 style="margin: 0; font-size: 18px; text-transform: uppercase;">Romaneio de Carga e Saída</h2>
+              <p style="margin: 4px 0 0 0; font-size: 12px; color: #4b5563;">Secretaria de Infraestrutura e Manutenção da Cidade</p>
+            </div>
           </div>
           <div style="text-align: right;">
             <h3 style="margin: 0; font-size: 18px;">Nº ${dadosRomaneio.numeroRomaneio}</h3>
             <p style="margin: 4px 0 0 0; font-size: 12px;">Data: ${dataFormatada}</p>
           </div>
         </div>
+
         ${tarjaCancelado}
+
         <div class="meta">
           <p style="margin: 4px 0;"><strong>Requerente / Destino da Obra:</strong> ${dadosRomaneio.requerente}</p>
           <p style="margin: 4px 0;"><strong>Autorizado por:</strong> ${dadosRomaneio.autorizacao}</p>
-          <p style="margin: 4px 0;"><strong>Emitido via sistema por:</strong> ${dadosRomaneio.emitidoPorEmail || "N/A"}</p>
+          <p style="margin: 4px 0;"><strong>Emitido por:</strong> ${dadosRomaneio.emitidoPorNome || "Almoxarifado"} (${dadosRomaneio.emitidoPorEmail || "N/A"})</p>
         </div>
+
         <table>
           <thead>
             <tr>
@@ -405,17 +411,21 @@ export default function App() {
           </thead>
           <tbody>${linhasTabela}</tbody>
         </table>
+
         <div class="total">Valor Total do Romaneio: R$ ${Number(dadosRomaneio.valorTotal || 0).toFixed(2)}</div>
+
         <div class="assinaturas">
           <div class="ass-box">Expedição / Almoxarifado (${dadosRomaneio.autorizacao})</div>
           <div class="ass-box">Recebido por (${dadosRomaneio.requerente})</div>
         </div>
+
         <script>
           window.onload = function() { setTimeout(function() { window.print(); }, 350); };
         </script>
       </body>
       </html>
     `;
+
     const win = window.open("", "_blank");
     if (win) {
       win.document.open();
@@ -544,16 +554,21 @@ export default function App() {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl text-center space-y-6">
-          <div className="mx-auto w-16 h-16 bg-blue-600/20 text-blue-400 rounded-2xl border border-blue-500/30 flex items-center justify-center mb-2">
-            <Package className="w-8 h-8" />
+          <div className="flex justify-center mb-2">
+            <img
+              src="/logo-prefeitura.jpg"
+              alt="Prefeitura de Florianópolis"
+              className="h-16 w-auto object-contain filter invert brightness-200 contrast-125"
+              style={{ mixBlendMode: "screen" }}
+            />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-white mb-2">Acesso ao Sistema</h1>
-            <p className="text-slate-400 text-sm">Controle de Estoque e Emissão de Romaneios</p>
+            <h1 className="text-2xl font-bold text-white mb-2">Acesso ao Almoxarifado</h1>
+            <p className="text-slate-400 text-sm">Controle de Materiais, Pedidos e Romaneios</p>
           </div>
           <button
             onClick={handleLoginGoogle}
-            className="w-full flex items-center justify-center gap-3 bg-white hover:bg-slate-100 text-slate-900 font-semibold py-3.5 px-4 rounded-xl transition"
+            className="w-full flex items-center justify-center gap-3 bg-white hover:bg-slate-100 text-slate-900 font-semibold py-3.5 px-4 rounded-xl transition shadow-lg"
           >
             <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
             Entrar com Google
@@ -569,15 +584,20 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* CABEÇALHO */}
+        {/* CABEÇALHO COM LOGO TRATADA EM BRANCO */}
         <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-lg">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600/20 text-blue-400 rounded-xl border border-blue-500/30">
-              <Package className="w-7 h-7" />
+          <div className="flex items-center gap-5">
+            <div className="flex items-center">
+              <img
+                src="/logo-prefeitura.jpg"
+                alt="Prefeitura de Florianópolis"
+                className="h-14 sm:h-16 w-auto object-contain filter invert brightness-200 contrast-125"
+                style={{ mixBlendMode: "screen" }}
+              />
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-white">Controle de Materiais & Romaneios</h1>
-              <p className="text-sm text-slate-400 hidden sm:block">Almoxarifado e Baixa em Nuvem</p>
+            <div className="border-l border-slate-800 pl-4 hidden sm:block">
+              <h1 className="text-lg font-bold text-white uppercase tracking-tight">Controle de Materiais & Romaneios</h1>
+              <p className="text-xs text-slate-400">Secretaria de Infraestrutura e Manutenção</p>
             </div>
           </div>
 
