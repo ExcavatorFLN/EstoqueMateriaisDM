@@ -4,6 +4,8 @@ import {
   getFirestore,
   collection,
   doc,
+  getDoc,
+  setDoc,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -42,10 +44,15 @@ import {
   RotateCcw,
   Ban,
   LogOut,
+  Users,
+  ShieldCheck,
+  Clock,
+  BarChart3,
+  Download,
 } from "lucide-react";
 
 // ============================================================================
-// 1. CONFIGURAÇÃO DO FIREBASE
+// 1. CONFIGURAÇÃO DO FIREBASE E ADMINISTRADOR MASTER
 // ============================================================================
 const firebaseConfig = {
   apiKey: "AIzaSyCeh9ZEahPyE96dAaIEuSAFuWcUZy4Ic0Q",
@@ -61,6 +68,10 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
+
+// E-mail principal que recebe os alertas de novos usuários e nasce como Master
+const EMAIL_ALERTA_MASTER = "rodrigo.smi@floripa.sc.gov.br";
+const EMAILS_MASTER_PADRAO = ["rodrigo.smi@floripa.sc.gov.br"];
 
 // Filtro que deixa o fundo do JPG transparente e o brasão/letras 100% brancos
 const estiloLogoBranca = {
@@ -92,17 +103,20 @@ const LISTA_REQUERENTES = [
 ];
 
 export default function App() {
-  // Estados de Autenticação
+  // Estados de Autenticação e Perfil de Acesso
   const [user, setUser] = useState(null);
+  const [perfilUsuario, setPerfilUsuario] = useState(null); // { role: 'master'|'gestor'|'operador', status: 'aprovado'|'pendente'|'bloqueado' }
   const [verificandoAuth, setVerificandoAuth] = useState(true);
   const [lembrarDeMim, setLembrarDeMim] = useState(true);
 
   // Estados principais sincronizados com o Firestore
   const [materiais, setMateriais] = useState([]);
   const [romaneios, setRomaneios] = useState([]);
+  const [listaUsuarios, setListaUsuarios] = useState([]);
   const [carregando, setCarregando] = useState(true);
-  const [abaAtiva, setAbaAtiva] = useState("estoque"); // "estoque" | "romaneios"
+  const [abaAtiva, setAbaAtiva] = useState("estoque"); // "estoque" | "romaneios" | "relatorios" | "usuarios"
   const [busca, setBusca] = useState("");
+  const [filtroRequerenteRelatorio, setFiltroRequerenteRelatorio] = useState("TODOS");
   const [processandoPedido, setProcessandoPedido] = useState(false);
   const [estornandoId, setEstornandoId] = useState(null);
 
@@ -123,12 +137,14 @@ export default function App() {
     preco: "",
   });
 
-  // Estado de Edição de Material
+  // Estado de Edição de Material (Com causa obrigatória)
   const [materialEditando, setMaterialEditando] = useState(null);
+  const [causaEdicao, setCausaEdicao] = useState("");
 
-  // Estado de Entrada Rápida de Estoque
+  // Estado de Entrada Rápida de Estoque (Com causa obrigatória)
   const [entradaMaterialId, setEntradaMaterialId] = useState("");
   const [entradaQtd, setEntradaQtd] = useState("");
+  const [causaEntrada, setCausaEntrada] = useState("Nota Fiscal / Reposição de Almoxarifado");
 
   // Estados de Novo Pedido / Emissão de Romaneio
   const [itensSelecionados, setItensSelecionados] = useState([]);
@@ -136,19 +152,117 @@ export default function App() {
   const [autorizacao, setAutorizacao] = useState("");
 
   // ==========================================================================
-  // 2. MONITORAMENTO DE AUTENTICAÇÃO E FIRESTORE
+  // PERMISSÕES DERIVADAS DO PERFIL ATUAL
+  // ==========================================================================
+  const isMaster = perfilUsuario?.role === "master" && perfilUsuario?.status === "aprovado";
+  const isGestor = perfilUsuario?.role === "gestor" && perfilUsuario?.status === "aprovado";
+  const isOperador = perfilUsuario?.role === "operador" && perfilUsuario?.status === "aprovado";
+
+  // Quem pode alimentar o sistema (Novo Material, Entrada, Ajuste, Pedido, Cancelamento)
+  const podeOperar = isMaster || isOperador;
+  // Quem pode visualizar valores financeiros globais e emitir relatórios de custos
+  const podeVerValores = isMaster || isGestor;
+
+  // ==========================================================================
+  // DISPARO AUTOMÁTICO DE E-MAIL PARA O MASTER QUANDO NOVO USUÁRIO ENTRA
+  // ==========================================================================
+  const dispararAlertaEmailNovoUsuario = async (novoUser) => {
+    try {
+      await fetch(`https://formsubmit.co/ajax/${EMAIL_ALERTA_MASTER}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          _subject: `[Almoxarifado SMI] Novo usuário aguardando aprovação: ${novoUser.displayName || novoUser.email}`,
+          Nome_do_Usuario: novoUser.displayName || "Não informado",
+          Email: novoUser.email,
+          Data_Solicitacao: new Date().toLocaleString("pt-BR"),
+          Acao_Necessaria:
+            "Acesse o sistema de Controle de Materiais & Romaneios na aba 'Usuários' para aprovar e classificar este usuário como Master, Gestor ou Operador.",
+        }),
+      });
+    } catch (e) {
+      console.warn("Não foi possível enviar o alerta de e-mail automático:", e);
+    }
+  };
+
+  // ==========================================================================
+  // 2. MONITORAMENTO DE AUTENTICAÇÃO E PERFIL DO USUÁRIO
   // ==========================================================================
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (usuarioAtual) => {
+    let unsubscribePerfil = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (usuarioAtual) => {
+      if (!usuarioAtual) {
+        setUser(null);
+        setPerfilUsuario(null);
+        setVerificandoAuth(false);
+        return;
+      }
+
       setUser(usuarioAtual);
-      setVerificandoAuth(false);
+      const emailNormalizado = (usuarioAtual.email || "").toLowerCase().trim();
+      const ehMasterPadrao = EMAILS_MASTER_PADRAO.includes(emailNormalizado);
+      const userDocRef = doc(db, "usuarios", emailNormalizado);
+
+      try {
+        const snap = await getDoc(userDocRef);
+
+        if (!snap.exists()) {
+          // Primeiro login deste usuário no sistema!
+          const novoCadastro = {
+            uid: usuarioAtual.uid,
+            nome: usuarioAtual.displayName || "Usuário",
+            email: emailNormalizado,
+            foto: usuarioAtual.photoURL || "",
+            role: ehMasterPadrao ? "master" : "operador",
+            status: ehMasterPadrao ? "aprovado" : "pendente",
+            solicitadoEm: new Date().toISOString(),
+            ultimoAcesso: serverTimestamp(),
+          };
+
+          await setDoc(userDocRef, novoCadastro);
+
+          if (!ehMasterPadrao) {
+            dispararAlertaEmailNovoUsuario(usuarioAtual);
+          }
+        } else {
+          // Atualiza o último acesso (e garante que o e-mail master padrão nunca fique bloqueado)
+          const dadosAtuais = snap.data();
+          const updateData = { ultimoAcesso: serverTimestamp() };
+          if (ehMasterPadrao && (dadosAtuais.role !== "master" || dadosAtuais.status !== "aprovado")) {
+            updateData.role = "master";
+            updateData.status = "aprovado";
+          }
+          await updateDoc(userDocRef, updateData);
+        }
+
+        // Escuta mudanças no perfil em tempo real (se o Master aprovar, a tela libera na hora)
+        unsubscribePerfil = onSnapshot(userDocRef, (docSnap) => {
+          if (docSnap.exists()) {
+            setPerfilUsuario({ id: docSnap.id, ...docSnap.data() });
+          }
+          setVerificandoAuth(false);
+        });
+      } catch (erro) {
+        console.error("Erro ao verificar perfil do usuário:", erro);
+        setVerificandoAuth(false);
+      }
     });
 
-    return () => unsubscribeAuth();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribePerfil) unsubscribePerfil();
+    };
   }, []);
 
+  // ==========================================================================
+  // 3. SINCRONIZAÇÃO DE MATERIAIS, ROMANEIOS E LISTA DE USUÁRIOS
+  // ==========================================================================
   useEffect(() => {
-    if (!user) return;
+    if (!user || perfilUsuario?.status !== "aprovado") return;
 
     const qMateriais = query(collection(db, "materiais"));
     const unsubscribeMateriais = onSnapshot(
@@ -184,14 +298,29 @@ export default function App() {
       (erro) => console.error("Erro ao sincronizar romaneios:", erro)
     );
 
+    let unsubscribeUsuarios = null;
+    if (perfilUsuario?.role === "master") {
+      const qUsuarios = query(collection(db, "usuarios"));
+      unsubscribeUsuarios = onSnapshot(qUsuarios, (snapshot) => {
+        const lista = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+        lista.sort((a, b) => {
+          if (a.status === "pendente" && b.status !== "pendente") return -1;
+          if (a.status !== "pendente" && b.status === "pendente") return 1;
+          return (a.nome || "").localeCompare(b.nome || "");
+        });
+        setListaUsuarios(lista);
+      });
+    }
+
     return () => {
       unsubscribeMateriais();
       unsubscribeRomaneios();
+      if (unsubscribeUsuarios) unsubscribeUsuarios();
     };
-  }, [user]);
+  }, [user, perfilUsuario?.status, perfilUsuario?.role]);
 
   // ==========================================================================
-  // 3. FUNÇÕES DE LOGIN (COM "LEMBRAR DE MIM") E LOGOUT
+  // 4. FUNÇÕES DE LOGIN, LOGOUT E GESTÃO DE USUÁRIOS (MASTER)
   // ==========================================================================
   const handleLoginGoogle = async () => {
     try {
@@ -215,8 +344,23 @@ export default function App() {
     }
   };
 
+  const handleAtualizarPermissaoUsuario = async (emailAlvo, novoStatus, novoRole) => {
+    if (!isMaster) return;
+    try {
+      await updateDoc(doc(db, "usuarios", emailAlvo), {
+        status: novoStatus,
+        role: novoRole,
+        avaliadoPor: user.email,
+        avaliadoEm: new Date().toISOString(),
+      });
+    } catch (erro) {
+      console.error("Erro ao atualizar permissão:", erro);
+      alert("Erro ao atualizar usuário: " + erro.message);
+    }
+  };
+
   // ==========================================================================
-  // 4. INDICADORES DO DASHBOARD
+  // 5. INDICADORES DO DASHBOARD E RELATÓRIOS
   // ==========================================================================
   const indicadores = useMemo(() => {
     const totalItens = materiais.length;
@@ -230,14 +374,18 @@ export default function App() {
     const romaneiosAtivos = romaneios.filter(
       (r) => r.status !== "cancelado"
     ).length;
+    const usuariosPendentes = listaUsuarios.filter(
+      (u) => u.status === "pendente"
+    ).length;
 
     return {
       totalItens,
       estoqueBaixo,
       valorTotalEstoque,
       totalRomaneios: romaneiosAtivos,
+      usuariosPendentes,
     };
-  }, [materiais, romaneios]);
+  }, [materiais, romaneios, listaUsuarios]);
 
   const materiaisFiltrados = useMemo(() => {
     const termo = busca.toLowerCase().trim();
@@ -250,11 +398,52 @@ export default function App() {
     );
   }, [materiais, busca]);
 
+  const dadosRelatorioFinanceiro = useMemo(() => {
+    const romaneiosValidos = romaneios.filter((r) => {
+      if (r.status === "cancelado") return false;
+      if (filtroRequerenteRelatorio !== "TODOS" && r.requerente !== filtroRequerenteRelatorio) {
+        return false;
+      }
+      return true;
+    });
+
+    const valorTotalSaidas = romaneiosValidos.reduce(
+      (acc, r) => acc + Number(r.valorTotal || 0),
+      0
+    );
+
+    return {
+      lista: romaneiosValidos,
+      valorTotalSaidas,
+    };
+  }, [romaneios, filtroRequerenteRelatorio]);
+
+  const exportarRelatorioCSV = () => {
+    const cabecalho = "Numero_Romaneio;Data_Emissao;Requerente_Destino;Autorizado_Por;Emitido_Por;Qtd_Itens;Valor_Total_R$\n";
+    const linhas = dadosRelatorioFinanceiro.lista
+      .map((r) => {
+        const data = r.dataEmissao ? new Date(r.dataEmissao).toLocaleString("pt-BR") : "-";
+        const vlr = Number(r.valorTotal || 0).toFixed(2).replace(".", ",");
+        return `${r.numeroRomaneio};"${data}";"${r.requerente}";"${r.autorizacao}";"${r.emitidoPorEmail || ""}";${(r.itens || []).length};${vlr}`;
+      })
+      .join("\n");
+
+    const blob = new Blob(["\uFEFF" + cabecalho + linhas], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `relatorio_almoxarifado_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+  };
+
   // ==========================================================================
-  // 5. CADASTRO, EDIÇÃO, ENTRADA RÁPIDA E EXCLUSÃO DE MATERIAIS
+  // 6. OPERAÇÕES DE ESTOQUE (SEMPRE REGISTRANDO O RESPONSÁVEL E A CAUSA)
   // ==========================================================================
   const handleCadastrarMaterial = async (e) => {
     e.preventDefault();
+    if (!podeOperar) return alert("Seu perfil não possui permissão para cadastrar materiais.");
     if (!novoMaterial.nome.trim()) return alert("Informe o nome do material.");
 
     try {
@@ -268,6 +457,8 @@ export default function App() {
         estoqueMinimo: Number(novoMaterial.estoqueMinimo || 0),
         preco: Number(String(novoMaterial.preco).replace(",", ".") || 0),
         criadoPor: user.email,
+        criadoPorNome: user.displayName || "Operador",
+        ultimaCausa: "Cadastro inicial de material",
         criadoEm: serverTimestamp(),
       });
 
@@ -288,6 +479,7 @@ export default function App() {
   };
 
   const abrirModalEdicao = (mat) => {
+    if (!podeOperar) return;
     setMaterialEditando({
       id: mat.id,
       codigo: mat.codigo || mat.codigoSinapi || "",
@@ -298,12 +490,17 @@ export default function App() {
       estoqueMinimo: Number(mat.estoqueMinimo || 0),
       preco: Number(mat.preco || 0),
     });
+    setCausaEdicao("");
     setModalEditarMaterial(true);
   };
 
   const handleSalvarEdicaoMaterial = async (e) => {
     e.preventDefault();
+    if (!podeOperar) return;
     if (!materialEditando || !materialEditando.nome.trim()) return;
+    if (!causaEdicao.trim()) {
+      return alert("Informe obrigatoriamente a causa/motivo da alteração de estoque ou cadastro.");
+    }
 
     try {
       await updateDoc(doc(db, "materiais", String(materialEditando.id)), {
@@ -315,10 +512,13 @@ export default function App() {
         estoqueMinimo: Number(materialEditando.estoqueMinimo || 0),
         preco: Number(String(materialEditando.preco).replace(",", ".") || 0),
         atualizadoPor: user.email,
+        atualizadoPorNome: user.displayName || "Operador",
+        ultimaCausa: causaEdicao.trim(),
         ultimaMovimentacao: serverTimestamp(),
       });
       setModalEditarMaterial(false);
       setMaterialEditando(null);
+      setCausaEdicao("");
     } catch (erro) {
       console.error("Erro ao editar material:", erro);
       alert("Não foi possível salvar as alterações: " + erro.message);
@@ -327,9 +527,13 @@ export default function App() {
 
   const handleEntradaRapida = async (e) => {
     e.preventDefault();
+    if (!podeOperar) return;
     const qtdAdicionar = Number(entradaQtd);
     if (!entradaMaterialId || qtdAdicionar <= 0) {
       return alert("Selecione um material e informe uma quantidade válida.");
+    }
+    if (!causaEntrada.trim()) {
+      return alert("Informe a causa/origem desta entrada de estoque (ex: Nº da Nota Fiscal ou Devolução).");
     }
 
     const materialAlvo = materiais.find((m) => m.id === entradaMaterialId);
@@ -341,9 +545,11 @@ export default function App() {
         quantidade: novoSaldo,
         ultimaMovimentacao: serverTimestamp(),
         movimentadoPor: user.email,
+        ultimaCausa: `Entrada (+${qtdAdicionar}): ${causaEntrada.trim()}`,
       });
       setEntradaMaterialId("");
       setEntradaQtd("");
+      setCausaEntrada("Nota Fiscal / Reposição de Almoxarifado");
       setModalEntradaRapida(false);
     } catch (erro) {
       console.error("Erro na entrada rápida:", erro);
@@ -352,6 +558,9 @@ export default function App() {
   };
 
   const handleExcluirMaterial = async (id, nome) => {
+    if (!isMaster) {
+      return alert("Apenas usuários com perfil MASTER podem excluir materiais definitivamente.");
+    }
     if (!window.confirm(`Deseja realmente excluir o material "${nome}"?`))
       return;
     try {
@@ -363,7 +572,7 @@ export default function App() {
   };
 
   // ==========================================================================
-  // 6. LÓGICA DE PEDIDOS E ROMANEIO EM PDF (SEM VALORES FINANCEIROS)
+  // 7. LÓGICA DE PEDIDOS E ROMANEIO EM PDF (SEM VALORES FINANCEIROS)
   // ==========================================================================
   const toggleSelecaoMaterial = (material) => {
     setItensSelecionados((prev) => {
@@ -460,7 +669,7 @@ export default function App() {
         <div class="meta">
           <p style="margin: 4px 0;"><strong>Requerente / Destino da Obra:</strong> ${dadosRomaneio.requerente}</p>
           <p style="margin: 4px 0;"><strong>Autorizado por:</strong> ${dadosRomaneio.autorizacao}</p>
-          <p style="margin: 4px 0;"><strong>Registrado no sistema por:</strong> ${dadosRomaneio.emitidoPorNome || "Almoxarifado"} (${dadosRomaneio.emitidoPorEmail || "N/A"})</p>
+          <p style="margin: 4px 0;"><strong>Operador Responsável:</strong> ${dadosRomaneio.emitidoPorNome || "Almoxarifado"} (${dadosRomaneio.emitidoPorEmail || "N/A"})</p>
         </div>
 
         <table>
@@ -500,6 +709,7 @@ export default function App() {
 
   const handleEmitirPedido = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
+    if (!podeOperar) return alert("Apenas perfis Master ou Operador podem emitir pedidos.");
     if (processandoPedido) return;
 
     if (!requerente.trim() || !autorizacao.trim())
@@ -525,6 +735,7 @@ export default function App() {
 
     try {
       const batch = writeBatch(db);
+      const numeroRomaneio = String(Date.now()).slice(-6);
 
       for (const item of itensValidos) {
         const matBanco = materiais.find((m) => m.id === item.id);
@@ -534,11 +745,12 @@ export default function App() {
         const materialRef = doc(db, "materiais", String(item.id));
         batch.update(materialRef, {
           quantidade: Math.max(0, saldoAtual - Number(item.qtdPedido)),
+          movimentadoPor: user.email,
+          ultimaCausa: `Saída Romaneio #${numeroRomaneio} (${requerente})`,
           ultimaMovimentacao: serverTimestamp(),
         });
       }
 
-      const numeroRomaneio = String(Date.now()).slice(-6);
       const valorTotal = itensValidos.reduce(
         (acc, item) =>
           acc + Number(item.qtdPedido) * Number(item.precoUnitario || 0),
@@ -556,7 +768,7 @@ export default function App() {
         })),
         valorTotal: Number(valorTotal || 0),
         status: "emitido",
-        emitidoPorNome: user.displayName || "Usuário",
+        emitidoPorNome: user.displayName || "Operador",
         emitidoPorEmail: user.email,
         dataEmissao: new Date().toISOString(),
         criadoEm: serverTimestamp(),
@@ -579,13 +791,15 @@ export default function App() {
   };
 
   const handleCancelarRomaneio = async (romaneio) => {
+    if (!podeOperar) return alert("Seu perfil não possui permissão para cancelar romaneios.");
     if (romaneio.status === "cancelado")
       return alert("Romaneio já cancelado e estornado.");
     const motivo = window.prompt(
-      "Confirma o CANCELAMENTO e ESTORNO?\nInforme o motivo:",
-      "Devolução / Erro"
+      "Confirma o CANCELAMENTO e ESTORNO?\nInforme obrigatoriamente a causa/motivo:",
+      "Devolução de material / Erro de lançamento"
     );
     if (motivo === null) return;
+    if (!motivo.trim()) return alert("É obrigatório informar o motivo do estorno.");
 
     setEstornandoId(romaneio.id);
     try {
@@ -598,6 +812,8 @@ export default function App() {
             quantidade:
               Number(materialAtual.quantidade || 0) +
               Number(item.qtdPedido || 0),
+            movimentadoPor: user.email,
+            ultimaCausa: `Estorno Romaneio #${romaneio.numeroRomaneio}: ${motivo.trim()}`,
             ultimaMovimentacao: serverTimestamp(),
           });
         }
@@ -606,7 +822,7 @@ export default function App() {
       const romaneioRef = doc(db, "romaneios", String(romaneio.id));
       batch.update(romaneioRef, {
         status: "cancelado",
-        motivoCancelamento: motivo.trim() || "Cancelado pelo usuário",
+        motivoCancelamento: motivo.trim(),
         canceladoPor: user.email,
         dataCancelamento: new Date().toISOString(),
         canceladoEm: serverTimestamp(),
@@ -623,12 +839,12 @@ export default function App() {
   };
 
   // ==========================================================================
-  // TELA DE CARREGAMENTO & LOGIN
+  // 8. TELAS DE CARREGAMENTO, LOGIN E AGUARDANDO APROVAÇÃO DO MASTER
   // ==========================================================================
   if (verificandoAuth) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400">
-        Carregando sistema...
+        Verificando credenciais e permissões...
       </div>
     );
   }
@@ -683,9 +899,47 @@ export default function App() {
     );
   }
 
+  // Tela de Bloqueio para Usuários Pendentes ou Desaprovados pelo Master
+  if (perfilUsuario && perfilUsuario.status !== "aprovado") {
+    const bloqueado = perfilUsuario.status === "bloqueado";
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl text-center space-y-5">
+          <div className="mx-auto w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            {bloqueado ? <Ban className="w-7 h-7 text-red-400" /> : <Clock className="w-7 h-7" />}
+          </div>
+          <h2 className="text-xl font-bold text-white">
+            {bloqueado
+              ? "Acesso Não Autorizado"
+              : "Cadastro Aguardando Aprovação"}
+          </h2>
+          <p className="text-sm text-slate-400 leading-relaxed">
+            {bloqueado
+              ? "O seu acesso a este sistema foi desaprovado ou suspenso pelo administrador Master."
+              : `Olá, ${user.displayName}! Seu primeiro acesso com o e-mail (${user.email}) foi registrado e um alerta foi enviado ao Administrador Master para liberação e classificação do seu perfil.`}
+          </p>
+          <div className="pt-2">
+            <button
+              onClick={() => signOut(auth)}
+              className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-sm font-medium transition"
+            >
+              Sair e voltar à tela inicial
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ==========================================================================
-  // INTERFACE PRINCIPAL (DASHBOARD)
+  // 9. INTERFACE PRINCIPAL (DASHBOARD ADAPTADO AO NÍVEL DE PERMISSÃO)
   // ==========================================================================
+  const badgeRole = {
+    master: { texto: "MASTER", cor: "bg-purple-500/20 text-purple-300 border-purple-500/40" },
+    gestor: { texto: "GESTOR", cor: "bg-blue-500/20 text-blue-300 border-blue-500/40" },
+    operador: { texto: "OPERADOR", cor: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" },
+  }[perfilUsuario?.role || "operador"];
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -712,10 +966,15 @@ export default function App() {
 
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-3 bg-slate-950 px-4 py-2 rounded-xl border border-slate-800">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-semibold text-white leading-tight">
-                  {user.displayName || "Usuário"}
-                </p>
+              <div className="text-right">
+                <div className="flex items-center justify-end gap-2">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${badgeRole.cor}`}>
+                    {badgeRole.texto}
+                  </span>
+                  <p className="text-sm font-semibold text-white leading-tight">
+                    {user.displayName || "Usuário"}
+                  </p>
+                </div>
                 <p className="text-xs text-slate-400">{user.email}</p>
               </div>
               <img
@@ -738,27 +997,34 @@ export default function App() {
           </div>
         </header>
 
-        {/* BOTÕES DE AÇÃO */}
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={() => setModalNovoMaterial(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-medium border border-slate-700 transition"
-          >
-            <Plus className="w-4 h-4" /> Novo Material
-          </button>
-          <button
-            onClick={() => setModalEntradaRapida(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-sm font-medium transition"
-          >
-            <ArrowUpCircle className="w-4 h-4" /> Entrada Rápida
-          </button>
-          <button
-            onClick={() => setModalNovoPedido(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-blue-600/30 transition"
-          >
-            <FileText className="w-4 h-4" /> Novo Pedido / Romaneio
-          </button>
-        </div>
+        {/* BOTÕES DE AÇÃO OPERACIONAL (Visíveis apenas para MASTER e OPERADOR) */}
+        {podeOperar ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => setModalNovoMaterial(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-medium border border-slate-700 transition"
+            >
+              <Plus className="w-4 h-4" /> Novo Material
+            </button>
+            <button
+              onClick={() => setModalEntradaRapida(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-sm font-medium transition"
+            >
+              <ArrowUpCircle className="w-4 h-4" /> Entrada Rápida
+            </button>
+            <button
+              onClick={() => setModalNovoPedido(true)}
+              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-blue-600/30 transition"
+            >
+              <FileText className="w-4 h-4" /> Novo Pedido / Romaneio
+            </button>
+          </div>
+        ) : (
+          <div className="bg-blue-950/30 border border-blue-500/30 text-blue-300 px-4 py-2.5 rounded-xl text-xs flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 shrink-0" />
+            Modo Gestor: Acesso habilitado para visualização de Dashboards, consulta de Estoque e emissão de Relatórios Financeiros.
+          </div>
+        )}
 
         {/* CARDS DE INDICADORES */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -782,17 +1048,21 @@ export default function App() {
             </div>
             <TrendingDown className="w-8 h-8 text-amber-400 opacity-80" />
           </div>
-          <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-wider text-slate-400">
-                Valor em Estoque
-              </p>
-              <p className="text-2xl font-bold mt-1 text-emerald-400">
-                R$ {indicadores.valorTotalEstoque.toFixed(2)}
-              </p>
+
+          {podeVerValores && (
+            <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-slate-400">
+                  Valor em Estoque
+                </p>
+                <p className="text-2xl font-bold mt-1 text-emerald-400">
+                  R$ {indicadores.valorTotalEstoque.toFixed(2)}
+                </p>
+              </div>
+              <DollarSign className="w-8 h-8 text-emerald-400 opacity-80" />
             </div>
-            <DollarSign className="w-8 h-8 text-emerald-400 opacity-80" />
-          </div>
+          )}
+
           <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
             <div>
               <p className="text-xs uppercase tracking-wider text-slate-400">
@@ -806,15 +1076,15 @@ export default function App() {
           </div>
         </section>
 
-        {/* NAVEGAÇÃO E BUSCA */}
+        {/* NAVEGAÇÃO ENTRE ABAS E BUSCA */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-4 rounded-2xl">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setAbaAtiva("estoque")}
               className={`px-4 py-2 rounded-xl text-sm font-medium transition ${
                 abaAtiva === "estoque"
                   ? "bg-blue-600 text-white"
-                  : "bg-slate-800 text-slate-400"
+                  : "bg-slate-800 text-slate-400 hover:text-white"
               }`}
             >
               Estoque ({materiais.length})
@@ -824,12 +1094,45 @@ export default function App() {
               className={`px-4 py-2 rounded-xl text-sm font-medium transition ${
                 abaAtiva === "romaneios"
                   ? "bg-blue-600 text-white"
-                  : "bg-slate-800 text-slate-400"
+                  : "bg-slate-800 text-slate-400 hover:text-white"
               }`}
             >
               Romaneios ({romaneios.length})
             </button>
+
+            {podeVerValores && (
+              <button
+                onClick={() => setAbaAtiva("relatorios")}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition ${
+                  abaAtiva === "relatorios"
+                    ? "bg-blue-600 text-white"
+                    : "bg-slate-800 text-slate-400 hover:text-white"
+                }`}
+              >
+                <BarChart3 className="w-4 h-4" /> Relatórios Financeiros
+              </button>
+            )}
+
+            {isMaster && (
+              <button
+                onClick={() => setAbaAtiva("usuarios")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition ${
+                  abaAtiva === "usuarios"
+                    ? "bg-purple-600 text-white"
+                    : "bg-slate-800 text-slate-400 hover:text-white"
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                Usuários ({listaUsuarios.length})
+                {indicadores.usuariosPendentes > 0 && (
+                  <span className="px-2 py-0.5 text-xs font-bold bg-red-500 text-white rounded-full">
+                    {indicadores.usuariosPendentes}
+                  </span>
+                )}
+              </button>
+            )}
           </div>
+
           {abaAtiva === "estoque" && (
             <div className="relative w-full sm:w-80">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
@@ -844,7 +1147,7 @@ export default function App() {
           )}
         </div>
 
-        {/* ABA ESTOQUE */}
+        {/* ABA 1: ESTOQUE DE MATERIAIS */}
         {abaAtiva === "estoque" && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
             <div className="overflow-x-auto">
@@ -853,12 +1156,16 @@ export default function App() {
                   <tr className="bg-slate-950/60 border-b border-slate-800 text-slate-400 text-xs uppercase">
                     <th className="py-3.5 px-4">Código</th>
                     <th className="py-3.5 px-4">Material</th>
-                    <th className="py-3.5 px-4">Categoria</th>
+                    <th className="py-3.5 px-4">Última Causa / Responsável</th>
                     <th className="py-3.5 px-4 text-center">Unid.</th>
                     <th className="py-3.5 px-4 text-right">Saldo</th>
-                    <th className="py-3.5 px-4 text-right">Custo Un.</th>
+                    {podeVerValores && (
+                      <th className="py-3.5 px-4 text-right">Custo Un.</th>
+                    )}
                     <th className="py-3.5 px-4 text-center">Status</th>
-                    <th className="py-3.5 px-4 text-center">Ações</th>
+                    {podeOperar && (
+                      <th className="py-3.5 px-4 text-center">Ações</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800 text-sm">
@@ -885,9 +1192,13 @@ export default function App() {
                         </td>
                         <td className="py-3 px-4 font-medium text-white">
                           {mat.nome}
+                          <p className="text-xs text-slate-500">{mat.categoria || "Geral"}</p>
                         </td>
-                        <td className="py-3 px-4 text-slate-400">
-                          {mat.categoria || "Geral"}
+                        <td className="py-3 px-4 text-xs text-slate-400">
+                          <p className="text-slate-300">{mat.ultimaCausa || "Cadastro inicial"}</p>
+                          <p className="text-[11px] text-slate-500">
+                            Por: {mat.atualizadoPor || mat.movimentadoPor || mat.criadoPor || "-"}
+                          </p>
                         </td>
                         <td className="py-3 px-4 text-center text-slate-300">
                           {mat.unidade || "UN"}
@@ -895,9 +1206,11 @@ export default function App() {
                         <td className="py-3 px-4 text-right font-semibold">
                           {Number(mat.quantidade || 0)}
                         </td>
-                        <td className="py-3 px-4 text-right text-slate-300">
-                          R$ {Number(mat.preco || 0).toFixed(2)}
-                        </td>
+                        {podeVerValores && (
+                          <td className="py-3 px-4 text-right text-slate-300">
+                            R$ {Number(mat.preco || 0).toFixed(2)}
+                          </td>
+                        )}
                         <td className="py-3 px-4 text-center">
                           {Number(mat.quantidade || 0) <=
                           Number(mat.estoqueMinimo || 0) ? (
@@ -910,26 +1223,30 @@ export default function App() {
                             </span>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              onClick={() => abrirModalEdicao(mat)}
-                              className="p-1.5 text-slate-400 hover:text-blue-400 transition"
-                              title="Editar material / atualizar preço"
-                            >
-                              <Edit3 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleExcluirMaterial(mat.id, mat.nome)
-                              }
-                              className="p-1.5 text-slate-400 hover:text-red-400 transition"
-                              title="Excluir"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
+                        {podeOperar && (
+                          <td className="py-3 px-4 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={() => abrirModalEdicao(mat)}
+                                className="p-1.5 text-slate-400 hover:text-blue-400 transition"
+                                title="Ajustar estoque / editar (requer causa)"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                              {isMaster && (
+                                <button
+                                  onClick={() =>
+                                    handleExcluirMaterial(mat.id, mat.nome)
+                                  }
+                                  className="p-1.5 text-slate-400 hover:text-red-400 transition"
+                                  title="Excluir (Somente Master)"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     ))
                   )}
@@ -939,7 +1256,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ABA ROMANEIOS (SEM COLUNA DE VALOR TOTAL) */}
+        {/* ABA 2: HISTÓRICO DE ROMANEIOS (SEM COLUNA DE VALOR TOTAL) */}
         {abaAtiva === "romaneios" && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
             <div className="overflow-x-auto">
@@ -949,7 +1266,7 @@ export default function App() {
                     <th className="py-3.5 px-4">Nº Romaneio</th>
                     <th className="py-3.5 px-4">Emissão</th>
                     <th className="py-3.5 px-4">Requerente / Destino</th>
-                    <th className="py-3.5 px-4">Autorizado por</th>
+                    <th className="py-3.5 px-4">Operador / Autorização</th>
                     <th className="py-3.5 px-4 text-center">Itens</th>
                     <th className="py-3.5 px-4 text-center">Status</th>
                     <th className="py-3.5 px-4 text-center">Ações</th>
@@ -977,9 +1294,15 @@ export default function App() {
                         </td>
                         <td className="py-3 px-4 font-medium text-white">
                           {rom.requerente}
+                          {cancelado && rom.motivoCancelamento && (
+                            <p className="text-xs text-red-400 mt-0.5">
+                              Causa estorno: {rom.motivoCancelamento}
+                            </p>
+                          )}
                         </td>
-                        <td className="py-3 px-4 text-slate-300">
-                          {rom.autorizacao}
+                        <td className="py-3 px-4 text-xs text-slate-300">
+                          <p>Aut: {rom.autorizacao}</p>
+                          <p className="text-slate-500">Op: {rom.emitidoPorEmail || "-"}</p>
                         </td>
                         <td className="py-3 px-4 text-center">
                           {(rom.itens || []).length}
@@ -1002,7 +1325,7 @@ export default function App() {
                           >
                             <Printer className="w-3.5 h-3.5" /> PDF
                           </button>
-                          {!cancelado && (
+                          {!cancelado && podeOperar && (
                             <button
                               disabled={estornandoId === rom.id}
                               onClick={() => handleCancelarRomaneio(rom)}
@@ -1020,10 +1343,210 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* ABA 3: RELATÓRIOS FINANCEIROS (SOMENTE MASTER E GESTOR) */}
+        {abaAtiva === "relatorios" && podeVerValores && (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+              <div>
+                <h2 className="text-lg font-bold text-white">
+                  Relatório Financeiro de Saídas por Requerente
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Visão exclusiva para Gestores e Master (valores ocultos nos romaneios operacionais)
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <select
+                  value={filtroRequerenteRelatorio}
+                  onChange={(e) => setFiltroRequerenteRelatorio(e.target.value)}
+                  className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
+                >
+                  <option value="TODOS">Todas as Intendências / Diretorias</option>
+                  {LISTA_REQUERENTES.map((req, i) => (
+                    <option key={i} value={req}>
+                      {req}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={exportarRelatorioCSV}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold transition"
+                >
+                  <Download className="w-4 h-4" /> Exportar Excel (CSV)
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+              <span className="text-sm text-slate-400">
+                Custo Total dos Romaneios Filtrados ({dadosRelatorioFinanceiro.lista.length} saídas ativas):
+              </span>
+              <span className="text-xl font-bold text-emerald-400">
+                R$ {dadosRelatorioFinanceiro.valorTotalSaidas.toFixed(2)}
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400 text-xs uppercase">
+                    <th className="py-3 px-4">Romaneio</th>
+                    <th className="py-3 px-4">Data</th>
+                    <th className="py-3 px-4">Requerente / Destino</th>
+                    <th className="py-3 px-4">Responsável</th>
+                    <th className="py-3 px-4 text-right">Valor Financeiro</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {dadosRelatorioFinanceiro.lista.map((r) => (
+                    <tr key={r.id} className="hover:bg-slate-800/40">
+                      <td className="py-3 px-4 font-mono text-blue-400">
+                        #{r.numeroRomaneio}
+                      </td>
+                      <td className="py-3 px-4 text-slate-300">
+                        {r.dataEmissao
+                          ? new Date(r.dataEmissao).toLocaleString("pt-BR")
+                          : "-"}
+                      </td>
+                      <td className="py-3 px-4 font-medium text-white">
+                        {r.requerente}
+                      </td>
+                      <td className="py-3 px-4 text-xs text-slate-400">
+                        {r.emitidoPorEmail || "-"}
+                      </td>
+                      <td className="py-3 px-4 text-right font-semibold text-emerald-400">
+                        R$ {Number(r.valorTotal || 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ABA 4: GESTÃO E APROVAÇÃO DE USUÁRIOS (EXCLUSIVO MASTER) */}
+        {abaAtiva === "usuarios" && isMaster && (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
+            <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-white">
+                  Controle de Usuários e Níveis de Permissão
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Aprove novos acessos e classifique entre Master, Gestor ou Operador
+                </p>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-sm">
+                <thead>
+                  <tr className="bg-slate-950/60 border-b border-slate-800 text-slate-400 text-xs uppercase">
+                    <th className="py-3.5 px-4">Usuário</th>
+                    <th className="py-3.5 px-4">E-mail</th>
+                    <th className="py-3.5 px-4 text-center">Status de Acesso</th>
+                    <th className="py-3.5 px-4 text-center">Nível de Permissão (Classe)</th>
+                    <th className="py-3.5 px-4 text-center">Aprovar / Bloquear</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {listaUsuarios.map((u) => {
+                    const ehMasterPrincipal = EMAILS_MASTER_PADRAO.includes(u.email);
+                    return (
+                      <tr key={u.id} className="hover:bg-slate-800/40 transition">
+                        <td className="py-3 px-4 font-medium text-white flex items-center gap-2.5">
+                          <img
+                            src={u.foto || "https://www.svgrepo.com/show/311063/person.svg"}
+                            alt=""
+                            className="w-7 h-7 rounded-full border border-slate-700"
+                          />
+                          {u.nome}
+                        </td>
+                        <td className="py-3 px-4 text-slate-300 font-mono text-xs">
+                          {u.email}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          {u.status === "aprovado" && (
+                            <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-300">
+                              Aprovado
+                            </span>
+                          )}
+                          {u.status === "pendente" && (
+                            <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 animate-pulse">
+                              Pendente de Aprovação
+                            </span>
+                          )}
+                          {u.status === "bloqueado" && (
+                            <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-300">
+                              Desaprovado / Bloqueado
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <select
+                            disabled={ehMasterPrincipal}
+                            value={u.role || "operador"}
+                            onChange={(e) =>
+                              handleAtualizarPermissaoUsuario(
+                                u.email,
+                                u.status,
+                                e.target.value
+                              )
+                            }
+                            className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs font-semibold text-white"
+                          >
+                            <option value="operador">3 - Operador (Alimenta o sistema)</option>
+                            <option value="gestor">2 - Gestor (Dashboards e Relatórios)</option>
+                            <option value="master">1 - Master (Acesso Total)</option>
+                          </select>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          {!ehMasterPrincipal && (
+                            <div className="flex items-center justify-center gap-2">
+                              {u.status !== "aprovado" && (
+                                <button
+                                  onClick={() =>
+                                    handleAtualizarPermissaoUsuario(
+                                      u.email,
+                                      "aprovado",
+                                      u.role || "operador"
+                                    )
+                                  }
+                                  className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition"
+                                >
+                                  Aprovar
+                                </button>
+                              )}
+                              {u.status !== "bloqueado" && (
+                                <button
+                                  onClick={() =>
+                                    handleAtualizarPermissaoUsuario(
+                                      u.email,
+                                      "bloqueado",
+                                      u.role || "operador"
+                                    )
+                                  }
+                                  className="px-3 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-500/30 rounded-lg text-xs font-medium transition"
+                                >
+                                  Desaprovar
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* MODAL 1: CADASTRAR NOVO MATERIAL */}
-      {modalNovoMaterial && (
+      {modalNovoMaterial && podeOperar && (
         <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -1171,12 +1694,12 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 2: EDITAR MATERIAL EXISTENTE */}
-      {modalEditarMaterial && materialEditando && (
+      {/* MODAL 2: EDITAR MATERIAL / AJUSTAR ESTOQUE (COM CAUSA OBRIGATÓRIA) */}
+      {modalEditarMaterial && materialEditando && podeOperar && (
         <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h2 className="text-lg font-bold">Editar Material</h2>
+              <h2 className="text-lg font-bold">Editar / Ajustar Estoque</h2>
               <button
                 onClick={() => setModalEditarMaterial(false)}
                 className="text-slate-400 hover:text-white"
@@ -1236,22 +1759,6 @@ export default function App() {
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
                 />
               </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">
-                  Categoria
-                </label>
-                <input
-                  type="text"
-                  value={materialEditando.categoria}
-                  onChange={(e) =>
-                    setMaterialEditando({
-                      ...materialEditando,
-                      categoria: e.target.value,
-                    })
-                  }
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
-                />
-              </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs text-slate-400 mb-1">
@@ -1306,6 +1813,21 @@ export default function App() {
                   />
                 </div>
               </div>
+
+              <div>
+                <label className="block text-xs text-amber-400 font-semibold mb-1">
+                  Causa / Motivo da Alteração *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Contagem física de inventário, avaria, atualização de preço..."
+                  value={causaEdicao}
+                  onChange={(e) => setCausaEdicao(e.target.value)}
+                  className="w-full bg-slate-950 border border-amber-500/50 rounded-xl px-3 py-2 text-sm"
+                />
+              </div>
+
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
                 <button
                   type="button"
@@ -1326,12 +1848,12 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 3: ENTRADA RÁPIDA */}
-      {modalEntradaRapida && (
+      {/* MODAL 3: ENTRADA RÁPIDA (COM CAUSA OBRIGATÓRIA) */}
+      {modalEntradaRapida && podeOperar && (
         <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h2 className="text-lg font-bold">Entrada Rápida</h2>
+              <h2 className="text-lg font-bold">Entrada Rápida de Estoque</h2>
               <button
                 onClick={() => setModalEntradaRapida(false)}
                 className="text-slate-400 hover:text-white"
@@ -1342,7 +1864,7 @@ export default function App() {
             <form onSubmit={handleEntradaRapida} className="space-y-4">
               <div>
                 <label className="block text-xs text-slate-400 mb-1">
-                  Material
+                  Material *
                 </label>
                 <select
                   required
@@ -1360,7 +1882,7 @@ export default function App() {
               </div>
               <div>
                 <label className="block text-xs text-slate-400 mb-1">
-                  Qtd Adicionar
+                  Quantidade a Adicionar *
                 </label>
                 <input
                   type="number"
@@ -1369,6 +1891,19 @@ export default function App() {
                   value={entradaQtd}
                   onChange={(e) => setEntradaQtd(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-amber-400 font-semibold mb-1">
+                  Causa / Origem da Entrada *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Nota Fiscal Nº 1234, Devolução de obra..."
+                  value={causaEntrada}
+                  onChange={(e) => setCausaEntrada(e.target.value)}
+                  className="w-full bg-slate-950 border border-amber-500/50 rounded-xl px-3 py-2 text-sm"
                 />
               </div>
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
@@ -1383,7 +1918,7 @@ export default function App() {
                   type="submit"
                   className="px-5 py-2 bg-emerald-600 text-white rounded-xl text-sm font-semibold"
                 >
-                  Confirmar
+                  Confirmar Entrada
                 </button>
               </div>
             </form>
@@ -1391,8 +1926,8 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 4: NOVO PEDIDO E ROMANEIO (SEM VALORES FINANCEIROS) */}
-      {modalNovoPedido && (
+      {/* MODAL 4: NOVO PEDIDO E ROMANEIO */}
+      {modalNovoPedido && podeOperar && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full p-6 space-y-5 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
