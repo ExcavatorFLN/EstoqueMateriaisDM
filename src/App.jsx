@@ -1771,7 +1771,7 @@ export default function App() {
       </div>
 
       {/* ====================================================================
-          MODAL 1: NOVO MATERIAL (COM AUTOCOMPLETE DOS 147 ITENS CHUMBADOS)
+          MODAL 1: NOVO MATERIAL
       ==================================================================== */}
       {modalNovoMaterial && podeOperar && (
         <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
@@ -1881,7 +1881,7 @@ export default function App() {
                   </label>
                   <input
                     type="number"
-                    step="0.01"
+                    step="any"
                     min="0"
                     required
                     placeholder="0,00"
@@ -2030,7 +2030,7 @@ export default function App() {
                   </label>
                   <input
                     type="number"
-                    step="0.01"
+                    step="any"
                     min="0"
                     value={materialEditando.preco}
                     onChange={(e) =>
@@ -2155,7 +2155,7 @@ export default function App() {
                   step="any"
                   min="0.01"
                   required
-                  placeholder="Ex: 500"
+                  placeholder="Ex: 500 ou 0,5"
                   value={entradaQtd}
                   onChange={(e) => setEntradaQtd(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
@@ -2194,9 +2194,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ====================================================================
-          MODAL 4: NOVO PEDIDO E ROMANEIO (LINHAS GRANDES AJUSTADAS E FLECHAS)
-      ==================================================================== */}
+      {/* MODAL 4: NOVO PEDIDO E ROMANEIO */}
       {modalNovoPedido && podeOperar && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full p-6 space-y-5 max-h-[90vh] flex flex-col">
@@ -2299,7 +2297,7 @@ export default function App() {
                             <input
                               type="number"
                               step="any"
-                              min="1"
+                              min="0.01"
                               max={saldo}
                               value={itemMarcado.qtdPedido}
                               onChange={(e) =>
