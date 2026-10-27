@@ -39,7 +39,6 @@ import {
   CheckSquare,
   Square,
   X,
-  ClipboardList,
   AlertTriangle,
   RotateCcw,
   Ban,
@@ -49,7 +48,6 @@ import {
   Clock,
   BarChart3,
   Download,
-  Database,
   CheckCircle2,
 } from "lucide-react";
 
@@ -77,6 +75,43 @@ const EMAILS_MASTER_PADRAO = ["rodrigo.smi@floripa.sc.gov.br"];
 const estiloLogoBranca = {
   filter: "grayscale(100%) invert(100%) contrast(300%) brightness(1.15)",
   mixBlendMode: "screen",
+};
+
+// ============================================================================
+// FUNÇÕES DE FORMATAÇÃO E LEITURA NUMÉRICA PADRÃO BRASILEIRO (1.234,56)
+// ============================================================================
+// Converte string no formato "1.234,56" ou "1234.56" para Number do JavaScript
+const lerNumeroBR = (valor) => {
+  if (typeof valor === "number") return isNaN(valor) ? 0 : valor;
+  if (!valor) return 0;
+  const str = String(valor).trim();
+  if (str.includes(",")) {
+    // Remove pontos de milhar e troca a vírgula decimal por ponto
+    const limpo = str.replace(/\./g, "").replace(",", ".");
+    const num = Number(limpo);
+    return isNaN(num) ? 0 : num;
+  }
+  const num = Number(str);
+  return isNaN(num) ? 0 : num;
+};
+
+// Formata Preços/Valores sempre com 2 casas decimais: 1.234,56
+const formatarMoedaBR = (valor) => {
+  const num = Number(valor || 0);
+  return num.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+};
+
+// Formata Quantidades com separador de milhar (.) e decimais (,): ex: 1.234 ou 1.234,50
+const formatarQuantidadeBR = (valor) => {
+  const num = Number(valor || 0);
+  const temDecimais = num % 1 !== 0;
+  return num.toLocaleString("pt-BR", {
+    minimumFractionDigits: temDecimais ? 2 : 0,
+    maximumFractionDigits: 2,
+  });
 };
 
 // ============================================================================
@@ -272,7 +307,6 @@ export default function App() {
   const [filtroRequerenteRelatorio, setFiltroRequerenteRelatorio] = useState("TODOS");
   const [processandoPedido, setProcessandoPedido] = useState(false);
   const [estornandoId, setEstornandoId] = useState(null);
-  const [importandoCatalogo, setImportandoCatalogo] = useState(false);
 
   // Estados dos Modais
   const [modalNovoMaterial, setModalNovoMaterial] = useState(false);
@@ -280,7 +314,7 @@ export default function App() {
   const [modalEntradaRapida, setModalEntradaRapida] = useState(false);
   const [modalNovoPedido, setModalNovoPedido] = useState(false);
 
-  // Estado do formulário de Novo Material (Apenas Código, Descrição, Unidade, Preço, Estoque Mínimo e Saldo Inicial)
+  // Estado do formulário de Novo Material
   const [novoMaterial, setNovoMaterial] = useState({
     codigo: "",
     nome: "",
@@ -485,7 +519,7 @@ export default function App() {
         codigo: item.codigo,
         nome: item.nome,
         unidade: item.unidade,
-        preco: String(item.preco),
+        preco: formatarMoedaBR(item.preco),
       }));
     } else {
       setItemCatalogoEncontrado(false);
@@ -503,7 +537,7 @@ export default function App() {
       codigo: item.codigo,
       nome: item.nome,
       unidade: item.unidade,
-      preco: String(item.preco),
+      preco: formatarMoedaBR(item.preco),
     }));
   };
 
@@ -520,61 +554,6 @@ export default function App() {
         item.nome.toLowerCase().includes(termoBusca)
     ).slice(0, 8);
   }, [novoMaterial.codigo, novoMaterial.nome, itemCatalogoEncontrado]);
-
-  // Importar em lote todos os 147 materiais chumbados para o Firestore (evitando duplicados)
-  const handleImportarCatalogoPadrao = async () => {
-    if (!podeOperar) return;
-    if (
-      !window.confirm(
-        `Deseja incluir na tabela de estoque os materiais da lista padrão da Diretoria (${CATALOGO_PADRAO_DM.length} itens)?\n\nItens já cadastrados com mesma descrição e unidade não serão duplicados.`
-      )
-    ) {
-      return;
-    }
-
-    setImportandoCatalogo(true);
-    try {
-      const batch = writeBatch(db);
-      let adicionados = 0;
-
-      for (const itemPadrao of CATALOGO_PADRAO_DM) {
-        const jaExiste = materiais.some(
-          (m) =>
-            (m.codigo === itemPadrao.codigo && m.unidade === itemPadrao.unidade) ||
-            (m.nome === itemPadrao.nome && m.unidade === itemPadrao.unidade)
-        );
-
-        if (!jaExiste) {
-          const ref = doc(collection(db, "materiais"));
-          batch.set(ref, {
-            codigo: itemPadrao.codigo,
-            nome: itemPadrao.nome,
-            unidade: itemPadrao.unidade,
-            preco: Number(itemPadrao.preco || 0),
-            estoqueMinimo: 0,
-            quantidade: 0,
-            criadoPor: user.email,
-            criadoPorNome: user.displayName || "Operador",
-            ultimaCausa: "Carga do catálogo padrão DM",
-            criadoEm: serverTimestamp(),
-          });
-          adicionados++;
-        }
-      }
-
-      if (adicionados > 0) {
-        await batch.commit();
-        alert(`${adicionados} materiais da lista padrão foram incluídos no estoque!`);
-      } else {
-        alert("Todos os 147 materiais da lista padrão já estão cadastrados no estoque.");
-      }
-    } catch (erro) {
-      console.error("Erro ao importar catálogo padrão:", erro);
-      alert("Erro ao importar lista padrão: " + erro.message);
-    } finally {
-      setImportandoCatalogo(false);
-    }
-  };
 
   // ==========================================================================
   // FUNÇÕES DE LOGIN, LOGOUT E GESTÃO DE USUÁRIOS
@@ -628,9 +607,6 @@ export default function App() {
       (acc, m) => acc + Number(m.quantidade || 0) * Number(m.preco || 0),
       0
     );
-    const romaneiosAtivos = romaneios.filter(
-      (r) => r.status !== "cancelado"
-    ).length;
     const usuariosPendentes = listaUsuarios.filter(
       (u) => u.status === "pendente"
     ).length;
@@ -639,10 +615,9 @@ export default function App() {
       totalItens,
       estoqueBaixo,
       valorTotalEstoque,
-      totalRomaneios: romaneiosAtivos,
       usuariosPendentes,
     };
-  }, [materiais, romaneios, listaUsuarios]);
+  }, [materiais, listaUsuarios]);
 
   const materiaisFiltrados = useMemo(() => {
     const termo = busca.toLowerCase().trim();
@@ -679,8 +654,8 @@ export default function App() {
     const linhas = dadosRelatorioFinanceiro.lista
       .map((r) => {
         const data = r.dataEmissao ? new Date(r.dataEmissao).toLocaleString("pt-BR") : "-";
-        const vlr = Number(r.valorTotal || 0).toFixed(2).replace(".", ",");
-        return `${r.numeroRomaneio};"${data}";"${r.requerente}";"${r.autorizacao}";"${r.emitidoPorEmail || ""}";${(r.itens || []).length};${vlr}`;
+        const vlr = formatarMoedaBR(r.valorTotal || 0);
+        return `${r.numeroRomaneio};"${data}";"${r.requerente}";"${r.autorizacao}";"${r.emitidoPorEmail || ""}";${formatarQuantidadeBR((r.itens || []).length)};"${vlr}"`;
       })
       .join("\n");
 
@@ -695,7 +670,7 @@ export default function App() {
   };
 
   // ==========================================================================
-  // OPERAÇÕES DE ESTOQUE (APENAS CÓDIGO, DESCRIÇÃO, UNIDADE, PREÇO, ESTOQUE MÍNIMO E SALDO)
+  // OPERAÇÕES DE ESTOQUE
   // ==========================================================================
   const handleCadastrarMaterial = async (e) => {
     e.preventDefault();
@@ -708,9 +683,9 @@ export default function App() {
           novoMaterial.codigo.trim() || `MAT-${String(Date.now()).slice(-4)}`,
         nome: novoMaterial.nome.trim(),
         unidade: novoMaterial.unidade.trim() || "UN",
-        preco: Number(String(novoMaterial.preco).replace(",", ".") || 0),
-        estoqueMinimo: Number(novoMaterial.estoqueMinimo || 0),
-        quantidade: Number(novoMaterial.quantidade || 0),
+        preco: lerNumeroBR(novoMaterial.preco),
+        estoqueMinimo: lerNumeroBR(novoMaterial.estoqueMinimo),
+        quantidade: lerNumeroBR(novoMaterial.quantidade),
         criadoPor: user.email,
         criadoPorNome: user.displayName || "Operador",
         ultimaCausa: "Cadastro inicial de material",
@@ -740,9 +715,9 @@ export default function App() {
       codigo: mat.codigo || "",
       nome: mat.nome || "",
       unidade: mat.unidade || "UN",
-      preco: Number(mat.preco || 0),
-      estoqueMinimo: Number(mat.estoqueMinimo || 0),
-      quantidade: Number(mat.quantidade || 0),
+      preco: formatarMoedaBR(mat.preco || 0),
+      estoqueMinimo: formatarQuantidadeBR(mat.estoqueMinimo || 0),
+      quantidade: formatarQuantidadeBR(mat.quantidade || 0),
     });
     setCausaEdicao("");
     setModalEditarMaterial(true);
@@ -761,9 +736,9 @@ export default function App() {
         codigo: materialEditando.codigo.trim() || "-",
         nome: materialEditando.nome.trim(),
         unidade: materialEditando.unidade.trim() || "UN",
-        preco: Number(String(materialEditando.preco).replace(",", ".") || 0),
-        estoqueMinimo: Number(materialEditando.estoqueMinimo || 0),
-        quantidade: Number(materialEditando.quantidade || 0),
+        preco: lerNumeroBR(materialEditando.preco),
+        estoqueMinimo: lerNumeroBR(materialEditando.estoqueMinimo),
+        quantidade: lerNumeroBR(materialEditando.quantidade),
         atualizadoPor: user.email,
         atualizadoPorNome: user.displayName || "Operador",
         ultimaCausa: causaEdicao.trim(),
@@ -781,7 +756,7 @@ export default function App() {
   const handleEntradaRapida = async (e) => {
     e.preventDefault();
     if (!podeOperar) return;
-    const qtdAdicionar = Number(entradaQtd);
+    const qtdAdicionar = lerNumeroBR(entradaQtd);
     if (!entradaMaterialId || qtdAdicionar <= 0) {
       return alert("Selecione um material e informe uma quantidade válida.");
     }
@@ -798,7 +773,7 @@ export default function App() {
         quantidade: novoSaldo,
         ultimaMovimentacao: serverTimestamp(),
         movimentadoPor: user.email,
-        ultimaCausa: `Entrada (+${qtdAdicionar}): ${causaEntrada.trim()}`,
+        ultimaCausa: `Entrada (+${formatarQuantidadeBR(qtdAdicionar)}): ${causaEntrada.trim()}`,
       });
       setEntradaMaterialId("");
       setEntradaQtd("");
@@ -842,18 +817,17 @@ export default function App() {
             unidade: material.unidade || "UN",
             estoqueAtual: Number(material.quantidade || 0),
             precoUnitario: Number(material.preco || 0),
-            qtdPedido: 1,
+            qtdPedido: "1",
           },
         ];
       }
     });
   };
 
-  const alterarQtdPedido = (id, novaQtd) => {
-    const valorNumerico = Math.max(0, Number(novaQtd));
+  const alterarQtdPedido = (id, novaQtdTexto) => {
     setItensSelecionados((prev) =>
       prev.map((item) =>
-        item.id === id ? { ...item, qtdPedido: valorNumerico } : item
+        item.id === id ? { ...item, qtdPedido: novaQtdTexto } : item
       )
     );
   };
@@ -879,7 +853,7 @@ export default function App() {
           <td style="text-align: center; font-family: monospace;">${item.codigo || "-"}</td>
           <td>${item.nome}</td>
           <td style="text-align: center;">${item.unidade}</td>
-          <td style="text-align: right; font-weight: bold;">${Number(item.qtdPedido)}</td>
+          <td style="text-align: right; font-weight: bold;">${formatarQuantidadeBR(item.qtdPedido)}</td>
         </tr>`
       )
       .join("");
@@ -968,7 +942,12 @@ export default function App() {
     if (!requerente.trim() || !autorizacao.trim())
       return alert("Preencha Requerente e Autorização.");
 
-    const itensValidos = itensSelecionados.filter(
+    const itensNormalizados = itensSelecionados.map((item) => ({
+      ...item,
+      qtdPedido: lerNumeroBR(item.qtdPedido),
+    }));
+
+    const itensValidos = itensNormalizados.filter(
       (item) => Number(item.qtdPedido) > 0
     );
     if (itensValidos.length === 0)
@@ -979,7 +958,7 @@ export default function App() {
       const saldoAtual = Number(matBanco?.quantidade ?? item.estoqueAtual ?? 0);
       if (Number(item.qtdPedido) > saldoAtual) {
         return alert(
-          `Estoque insuficiente para "${item.nome}". Disponível: ${saldoAtual}, Solicitado: ${item.qtdPedido}.`
+          `Estoque insuficiente para "${item.nome}". Disponível: ${formatarQuantidadeBR(saldoAtual)}, Solicitado: ${formatarQuantidadeBR(item.qtdPedido)}.`
         );
       }
     }
@@ -1264,17 +1243,6 @@ export default function App() {
             >
               <ArrowUpCircle className="w-4 h-4" /> Entrada Rápida
             </button>
-            {isMaster && (
-              <button
-                disabled={importandoCatalogo}
-                onClick={handleImportarCatalogoPadrao}
-                className="flex items-center gap-2 px-4 py-2.5 bg-amber-600/20 hover:bg-amber-600/30 disabled:opacity-50 text-amber-300 border border-amber-500/30 rounded-xl text-sm font-medium transition"
-                title="Carregar todos os 147 materiais padrão da Diretoria para o estoque"
-              >
-                <Database className="w-4 h-4" />
-                {importandoCatalogo ? "Importando..." : "Carregar Lista Padrão DM (147)"}
-              </button>
-            )}
             <button
               onClick={() => setModalNovoPedido(true)}
               className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-blue-600/30 transition"
@@ -1289,24 +1257,31 @@ export default function App() {
           </div>
         )}
 
-        {/* CARDS DE INDICADORES */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* CARDS DE INDICADORES (SEM O PAINEL ROMANEIOS ATIVOS) */}
+        <section
+          className={`grid grid-cols-1 sm:grid-cols-2 ${
+            podeVerValores ? "lg:grid-cols-3" : "lg:grid-cols-2"
+          } gap-4`}
+        >
           <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
             <div>
               <p className="text-xs uppercase tracking-wider text-slate-400">
                 Materiais Cadastrados
               </p>
-              <p className="text-2xl font-bold mt-1">{indicadores.totalItens}</p>
+              <p className="text-2xl font-bold mt-1">
+                {formatarQuantidadeBR(indicadores.totalItens)}
+              </p>
             </div>
             <Package className="w-8 h-8 text-blue-400 opacity-80" />
           </div>
+
           <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
             <div>
               <p className="text-xs uppercase tracking-wider text-slate-400">
                 Estoque Baixo
               </p>
               <p className="text-2xl font-bold mt-1 text-amber-400">
-                {indicadores.estoqueBaixo}
+                {formatarQuantidadeBR(indicadores.estoqueBaixo)}
               </p>
             </div>
             <TrendingDown className="w-8 h-8 text-amber-400 opacity-80" />
@@ -1319,24 +1294,12 @@ export default function App() {
                   Valor em Estoque
                 </p>
                 <p className="text-2xl font-bold mt-1 text-emerald-400">
-                  R$ {indicadores.valorTotalEstoque.toFixed(2)}
+                  R$ {formatarMoedaBR(indicadores.valorTotalEstoque)}
                 </p>
               </div>
               <DollarSign className="w-8 h-8 text-emerald-400 opacity-80" />
             </div>
           )}
-
-          <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-wider text-slate-400">
-                Romaneios Ativos
-              </p>
-              <p className="text-2xl font-bold mt-1 text-purple-400">
-                {indicadores.totalRomaneios}
-              </p>
-            </div>
-            <ClipboardList className="w-8 h-8 text-purple-400 opacity-80" />
-          </div>
         </section>
 
         {/* NAVEGAÇÃO ENTRE ABAS E BUSCA */}
@@ -1350,7 +1313,7 @@ export default function App() {
                   : "bg-slate-800 text-slate-400 hover:text-white"
               }`}
             >
-              Estoque ({materiais.length})
+              Estoque ({formatarQuantidadeBR(materiais.length)})
             </button>
             <button
               onClick={() => setAbaAtiva("romaneios")}
@@ -1360,7 +1323,7 @@ export default function App() {
                   : "bg-slate-800 text-slate-400 hover:text-white"
               }`}
             >
-              Romaneios ({romaneios.length})
+              Romaneios ({formatarQuantidadeBR(romaneios.length)})
             </button>
 
             {podeVerValores && (
@@ -1386,10 +1349,10 @@ export default function App() {
                 }`}
               >
                 <Users className="w-4 h-4" />
-                Usuários ({listaUsuarios.length})
+                Usuários ({formatarQuantidadeBR(listaUsuarios.length)})
                 {indicadores.usuariosPendentes > 0 && (
                   <span className="px-2 py-0.5 text-xs font-bold bg-red-500 text-white rounded-full">
-                    {indicadores.usuariosPendentes}
+                    {formatarQuantidadeBR(indicadores.usuariosPendentes)}
                   </span>
                 )}
               </button>
@@ -1410,7 +1373,7 @@ export default function App() {
           )}
         </div>
 
-        {/* ABA 1: ESTOQUE DE MATERIAIS (SEM COLUNA CATEGORIA) */}
+        {/* ABA 1: ESTOQUE DE MATERIAIS */}
         {abaAtiva === "estoque" && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
             <div className="overflow-x-auto">
@@ -1462,14 +1425,14 @@ export default function App() {
                         </td>
                         {podeVerValores && (
                           <td className="py-3 px-4 text-right text-slate-300">
-                            R$ {Number(mat.preco || 0).toFixed(2)}
+                            R$ {formatarMoedaBR(mat.preco)}
                           </td>
                         )}
                         <td className="py-3 px-4 text-center text-slate-400">
-                          {Number(mat.estoqueMinimo || 0)}
+                          {formatarQuantidadeBR(mat.estoqueMinimo)}
                         </td>
                         <td className="py-3 px-4 text-right font-semibold text-white">
-                          {Number(mat.quantidade || 0)}
+                          {formatarQuantidadeBR(mat.quantidade)}
                         </td>
                         <td className="py-3 px-4 text-xs text-slate-400">
                           <p className="text-slate-300">{mat.ultimaCausa || "Cadastro inicial"}</p>
@@ -1571,7 +1534,7 @@ export default function App() {
                           <p className="text-slate-500">Op: {rom.emitidoPorEmail || "-"}</p>
                         </td>
                         <td className="py-3 px-4 text-center">
-                          {(rom.itens || []).length}
+                          {formatarQuantidadeBR((rom.itens || []).length)}
                         </td>
                         <td className="py-3 px-4 text-center">
                           {cancelado ? (
@@ -1646,10 +1609,10 @@ export default function App() {
 
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
               <span className="text-sm text-slate-400">
-                Custo Total dos Romaneios Filtrados ({dadosRelatorioFinanceiro.lista.length} saídas ativas):
+                Custo Total dos Romaneios Filtrados ({formatarQuantidadeBR(dadosRelatorioFinanceiro.lista.length)} saídas ativas):
               </span>
               <span className="text-xl font-bold text-emerald-400">
-                R$ {dadosRelatorioFinanceiro.valorTotalSaidas.toFixed(2)}
+                R$ {formatarMoedaBR(dadosRelatorioFinanceiro.valorTotalSaidas)}
               </span>
             </div>
 
@@ -1682,7 +1645,7 @@ export default function App() {
                         {r.emitidoPorEmail || "-"}
                       </td>
                       <td className="py-3 px-4 text-right font-semibold text-emerald-400">
-                        R$ {Number(r.valorTotal || 0).toFixed(2)}
+                        R$ {formatarMoedaBR(r.valorTotal)}
                       </td>
                     </tr>
                   ))}
@@ -1874,7 +1837,7 @@ export default function App() {
                           </span>
                         </div>
                         <span className="text-xs font-semibold text-emerald-400 shrink-0">
-                          {item.unidade} • R$ {Number(item.preco).toFixed(2)}
+                          {item.unidade} • R$ {formatarMoedaBR(item.preco)}
                         </span>
                       </button>
                     ))}
@@ -1900,7 +1863,7 @@ export default function App() {
                 />
               </div>
 
-              {/* Campos 3 e 4: Unidade e Preço Unitário */}
+              {/* Campos 3 e 4: Unidade e Preço Unitário (Formato BR) */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-slate-400 mb-1">
@@ -1925,10 +1888,10 @@ export default function App() {
                     Preço Unitário (R$) *
                   </label>
                   <input
-                    type="number"
-                    step="0.01"
-                    min="0"
+                    type="text"
+                    inputMode="decimal"
                     required
+                    placeholder="Ex: 1.234,56"
                     value={novoMaterial.preco}
                     onChange={(e) =>
                       setNovoMaterial({ ...novoMaterial, preco: e.target.value })
@@ -1945,9 +1908,10 @@ export default function App() {
                     Estoque Mínimo *
                   </label>
                   <input
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="decimal"
                     required
+                    placeholder="Ex: 100"
                     value={novoMaterial.estoqueMinimo}
                     onChange={(e) =>
                       setNovoMaterial({
@@ -1963,8 +1927,9 @@ export default function App() {
                     Saldo Inicial em Estoque
                   </label>
                   <input
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="Ex: 1.000"
                     value={novoMaterial.quantidade}
                     onChange={(e) =>
                       setNovoMaterial({
@@ -1998,7 +1963,7 @@ export default function App() {
       )}
 
       {/* ====================================================================
-          MODAL 2: EDITAR MATERIAL / AJUSTAR ESTOQUE (SEM CAMPO CATEGORIA)
+          MODAL 2: EDITAR MATERIAL / AJUSTAR ESTOQUE
       ==================================================================== */}
       {modalEditarMaterial && materialEditando && podeOperar && (
         <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
@@ -2070,9 +2035,8 @@ export default function App() {
                     Preço Unitário (R$)
                   </label>
                   <input
-                    type="number"
-                    step="0.01"
-                    min="0"
+                    type="text"
+                    inputMode="decimal"
                     value={materialEditando.preco}
                     onChange={(e) =>
                       setMaterialEditando({
@@ -2088,8 +2052,8 @@ export default function App() {
                     Estoque Mínimo
                   </label>
                   <input
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="decimal"
                     value={materialEditando.estoqueMinimo}
                     onChange={(e) =>
                       setMaterialEditando({
@@ -2105,8 +2069,8 @@ export default function App() {
                     Saldo Atual
                   </label>
                   <input
-                    type="number"
-                    min="0"
+                    type="text"
+                    inputMode="decimal"
                     value={materialEditando.quantidade}
                     onChange={(e) =>
                       setMaterialEditando({
@@ -2180,7 +2144,7 @@ export default function App() {
                   <option value="">-- Escolha --</option>
                   {materiais.map((m) => (
                     <option key={m.id} value={m.id}>
-                      [{m.codigo}] {m.nome} (Saldo: {m.quantidade} {m.unidade})
+                      [{m.codigo}] {m.nome} (Saldo: {formatarQuantidadeBR(m.quantidade)} {m.unidade})
                     </option>
                   ))}
                 </select>
@@ -2190,9 +2154,10 @@ export default function App() {
                   Quantidade a Adicionar *
                 </label>
                 <input
-                  type="number"
-                  min="1"
+                  type="text"
+                  inputMode="decimal"
                   required
+                  placeholder="Ex: 500 ou 1.250,50"
                   value={entradaQtd}
                   onChange={(e) => setEntradaQtd(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
@@ -2288,7 +2253,7 @@ export default function App() {
               <div className="border border-slate-800 rounded-xl overflow-hidden">
                 <div className="bg-slate-950 px-4 py-2.5 text-xs font-semibold uppercase text-slate-400 flex justify-between">
                   <span>Materiais Disponíveis</span>
-                  <span>Itens marcados: {itensSelecionados.length}</span>
+                  <span>Itens marcados: {formatarQuantidadeBR(itensSelecionados.length)}</span>
                 </div>
                 <div className="max-h-72 overflow-y-auto divide-y divide-slate-800">
                   {materiais.map((mat) => {
@@ -2324,7 +2289,7 @@ export default function App() {
                               {mat.nome}
                             </p>
                             <p className="text-xs text-slate-400">
-                              Saldo disponível: {saldo} {mat.unidade || "UN"}
+                              Saldo disponível: {formatarQuantidadeBR(saldo)} {mat.unidade || "UN"}
                             </p>
                           </div>
                         </button>
@@ -2332,9 +2297,8 @@ export default function App() {
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-slate-400">Qtd:</span>
                             <input
-                              type="number"
-                              min="1"
-                              max={saldo}
+                              type="text"
+                              inputMode="decimal"
                               value={itemMarcado.qtdPedido}
                               onChange={(e) =>
                                 alterarQtdPedido(mat.id, e.target.value)
@@ -2353,7 +2317,7 @@ export default function App() {
                 <div className="text-sm text-slate-400">
                   Total de itens selecionados:{" "}
                   <strong className="text-white">
-                    {itensSelecionados.length}
+                    {formatarQuantidadeBR(itensSelecionados.length)}
                   </strong>
                 </div>
                 <div className="flex gap-2">
