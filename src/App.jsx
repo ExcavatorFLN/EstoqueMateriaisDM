@@ -80,13 +80,11 @@ const estiloLogoBranca = {
 // ============================================================================
 // FUNÇÕES DE FORMATAÇÃO E LEITURA NUMÉRICA PADRÃO BRASILEIRO (1.234,56)
 // ============================================================================
-// Converte string no formato "1.234,56" ou "1234.56" para Number do JavaScript
 const lerNumeroBR = (valor) => {
   if (typeof valor === "number") return isNaN(valor) ? 0 : valor;
   if (!valor) return 0;
   const str = String(valor).trim();
   if (str.includes(",")) {
-    // Remove pontos de milhar e troca a vírgula decimal por ponto
     const limpo = str.replace(/\./g, "").replace(",", ".");
     const num = Number(limpo);
     return isNaN(num) ? 0 : num;
@@ -95,7 +93,6 @@ const lerNumeroBR = (valor) => {
   return isNaN(num) ? 0 : num;
 };
 
-// Formata Preços/Valores sempre com 2 casas decimais: 1.234,56
 const formatarMoedaBR = (valor) => {
   const num = Number(valor || 0);
   return num.toLocaleString("pt-BR", {
@@ -104,7 +101,6 @@ const formatarMoedaBR = (valor) => {
   });
 };
 
-// Formata Quantidades com separador de milhar (.) e decimais (,): ex: 1.234 ou 1.234,50
 const formatarQuantidadeBR = (valor) => {
   const num = Number(valor || 0);
   const temDecimais = num % 1 !== 0;
@@ -519,7 +515,7 @@ export default function App() {
         codigo: item.codigo,
         nome: item.nome,
         unidade: item.unidade,
-        preco: formatarMoedaBR(item.preco),
+        preco: String(item.preco),
       }));
     } else {
       setItemCatalogoEncontrado(false);
@@ -537,7 +533,7 @@ export default function App() {
       codigo: item.codigo,
       nome: item.nome,
       unidade: item.unidade,
-      preco: formatarMoedaBR(item.preco),
+      preco: String(item.preco),
     }));
   };
 
@@ -715,9 +711,9 @@ export default function App() {
       codigo: mat.codigo || "",
       nome: mat.nome || "",
       unidade: mat.unidade || "UN",
-      preco: formatarMoedaBR(mat.preco || 0),
-      estoqueMinimo: formatarQuantidadeBR(mat.estoqueMinimo || 0),
-      quantidade: formatarQuantidadeBR(mat.quantidade || 0),
+      preco: Number(mat.preco || 0),
+      estoqueMinimo: Number(mat.estoqueMinimo || 0),
+      quantidade: Number(mat.quantidade || 0),
     });
     setCausaEdicao("");
     setModalEditarMaterial(true);
@@ -817,17 +813,17 @@ export default function App() {
             unidade: material.unidade || "UN",
             estoqueAtual: Number(material.quantidade || 0),
             precoUnitario: Number(material.preco || 0),
-            qtdPedido: "1",
+            qtdPedido: 1,
           },
         ];
       }
     });
   };
 
-  const alterarQtdPedido = (id, novaQtdTexto) => {
+  const alterarQtdPedido = (id, novaQtd) => {
     setItensSelecionados((prev) =>
       prev.map((item) =>
-        item.id === id ? { ...item, qtdPedido: novaQtdTexto } : item
+        item.id === id ? { ...item, qtdPedido: novaQtd } : item
       )
     );
   };
@@ -1257,7 +1253,7 @@ export default function App() {
           </div>
         )}
 
-        {/* CARDS DE INDICADORES (SEM O PAINEL ROMANEIOS ATIVOS) */}
+        {/* CARDS DE INDICADORES */}
         <section
           className={`grid grid-cols-1 sm:grid-cols-2 ${
             podeVerValores ? "lg:grid-cols-3" : "lg:grid-cols-2"
@@ -1796,7 +1792,6 @@ export default function App() {
             </div>
 
             <form onSubmit={handleCadastrarMaterial} className="space-y-4">
-              {/* Campo 1: Código com busca instantânea */}
               <div className="bg-slate-950 border border-amber-500/40 rounded-xl p-3.5 space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-semibold text-amber-400 uppercase">
@@ -1818,7 +1813,6 @@ export default function App() {
                   className="w-full bg-slate-900 border border-slate-700 focus:border-amber-400 rounded-xl px-3.5 py-2 text-sm font-mono text-white focus:outline-none"
                 />
 
-                {/* Sugestões dos 147 itens da planilha */}
                 {sugestoesCatalogoDM.length > 0 && (
                   <div className="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden divide-y divide-slate-800 mt-1 max-h-48 overflow-y-auto shadow-xl">
                     {sugestoesCatalogoDM.map((item, idx) => (
@@ -1845,7 +1839,6 @@ export default function App() {
                 )}
               </div>
 
-              {/* Campo 2: Descrição */}
               <div>
                 <label className="block text-xs text-slate-400 mb-1">
                   Descrição *
@@ -1863,7 +1856,6 @@ export default function App() {
                 />
               </div>
 
-              {/* Campos 3 e 4: Unidade e Preço Unitário (Formato BR) */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-slate-400 mb-1">
@@ -1888,10 +1880,11 @@ export default function App() {
                     Preço Unitário (R$) *
                   </label>
                   <input
-                    type="text"
-                    inputMode="decimal"
+                    type="number"
+                    step="0.01"
+                    min="0"
                     required
-                    placeholder="Ex: 1.234,56"
+                    placeholder="0,00"
                     value={novoMaterial.preco}
                     onChange={(e) =>
                       setNovoMaterial({ ...novoMaterial, preco: e.target.value })
@@ -1901,15 +1894,15 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Campo 5 (Estoque Mínimo) + Saldo Inicial */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-slate-400 mb-1">
                     Estoque Mínimo *
                   </label>
                   <input
-                    type="text"
-                    inputMode="decimal"
+                    type="number"
+                    step="any"
+                    min="0"
                     required
                     placeholder="Ex: 100"
                     value={novoMaterial.estoqueMinimo}
@@ -1927,9 +1920,10 @@ export default function App() {
                     Saldo Inicial em Estoque
                   </label>
                   <input
-                    type="text"
-                    inputMode="decimal"
-                    placeholder="Ex: 1.000"
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="Ex: 1000"
                     value={novoMaterial.quantidade}
                     onChange={(e) =>
                       setNovoMaterial({
@@ -2035,8 +2029,9 @@ export default function App() {
                     Preço Unitário (R$)
                   </label>
                   <input
-                    type="text"
-                    inputMode="decimal"
+                    type="number"
+                    step="0.01"
+                    min="0"
                     value={materialEditando.preco}
                     onChange={(e) =>
                       setMaterialEditando({
@@ -2052,8 +2047,9 @@ export default function App() {
                     Estoque Mínimo
                   </label>
                   <input
-                    type="text"
-                    inputMode="decimal"
+                    type="number"
+                    step="any"
+                    min="0"
                     value={materialEditando.estoqueMinimo}
                     onChange={(e) =>
                       setMaterialEditando({
@@ -2069,8 +2065,9 @@ export default function App() {
                     Saldo Atual
                   </label>
                   <input
-                    type="text"
-                    inputMode="decimal"
+                    type="number"
+                    step="any"
+                    min="0"
                     value={materialEditando.quantidade}
                     onChange={(e) =>
                       setMaterialEditando({
@@ -2154,10 +2151,11 @@ export default function App() {
                   Quantidade a Adicionar *
                 </label>
                 <input
-                  type="text"
-                  inputMode="decimal"
+                  type="number"
+                  step="any"
+                  min="0.01"
                   required
-                  placeholder="Ex: 500 ou 1.250,50"
+                  placeholder="Ex: 500"
                   value={entradaQtd}
                   onChange={(e) => setEntradaQtd(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
@@ -2196,7 +2194,9 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 4: NOVO PEDIDO E ROMANEIO */}
+      {/* ====================================================================
+          MODAL 4: NOVO PEDIDO E ROMANEIO (LINHAS GRANDES AJUSTADAS E FLECHAS)
+      ==================================================================== */}
       {modalNovoPedido && podeOperar && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full p-6 space-y-5 max-h-[90vh] flex flex-col">
@@ -2255,7 +2255,7 @@ export default function App() {
                   <span>Materiais Disponíveis</span>
                   <span>Itens marcados: {formatarQuantidadeBR(itensSelecionados.length)}</span>
                 </div>
-                <div className="max-h-72 overflow-y-auto divide-y divide-slate-800">
+                <div className="max-h-80 overflow-y-auto divide-y divide-slate-800">
                   {materiais.map((mat) => {
                     const itemMarcado = itensSelecionados.find(
                       (i) => i.id === mat.id
@@ -2264,7 +2264,7 @@ export default function App() {
                     return (
                       <div
                         key={mat.id}
-                        className={`flex items-center justify-between px-4 py-3 text-sm ${
+                        className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3.5 text-sm transition ${
                           itemMarcado
                             ? "bg-blue-950/30"
                             : "hover:bg-slate-800/40"
@@ -2274,37 +2274,42 @@ export default function App() {
                           type="button"
                           disabled={saldo <= 0}
                           onClick={() => toggleSelecaoMaterial(mat)}
-                          className="flex items-center gap-3 text-left flex-1"
+                          className="flex items-start gap-3.5 text-left flex-1 min-w-0"
                         >
                           {itemMarcado ? (
-                            <CheckSquare className="w-5 h-5 text-blue-400" />
+                            <CheckSquare className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
                           ) : (
-                            <Square className="w-5 h-5 text-slate-500" />
+                            <Square className="w-5 h-5 text-slate-500 shrink-0 mt-0.5" />
                           )}
-                          <div>
-                            <p className="font-medium text-white">
+                          <div className="flex-1 min-w-0 pr-2">
+                            <p className="font-medium text-white leading-snug break-words">
                               <span className="font-mono text-xs text-amber-400 mr-2">
                                 [{mat.codigo}]
                               </span>
                               {mat.nome}
                             </p>
-                            <p className="text-xs text-slate-400">
+                            <p className="text-xs text-slate-400 mt-1">
                               Saldo disponível: {formatarQuantidadeBR(saldo)} {mat.unidade || "UN"}
                             </p>
                           </div>
                         </button>
                         {itemMarcado && (
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center pl-8 sm:pl-0">
                             <span className="text-xs text-slate-400">Qtd:</span>
                             <input
-                              type="text"
-                              inputMode="decimal"
+                              type="number"
+                              step="any"
+                              min="1"
+                              max={saldo}
                               value={itemMarcado.qtdPedido}
                               onChange={(e) =>
                                 alterarQtdPedido(mat.id, e.target.value)
                               }
-                              className="w-24 bg-slate-950 border border-blue-500/50 rounded-lg px-2.5 py-1 text-right text-sm"
+                              className="w-28 bg-slate-950 border border-blue-500/50 rounded-lg px-2.5 py-1.5 text-right text-sm font-semibold text-white"
                             />
+                            <span className="text-xs text-slate-400 w-7">
+                              {mat.unidade || "UN"}
+                            </span>
                           </div>
                         )}
                       </div>
