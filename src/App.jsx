@@ -32,6 +32,7 @@ import {
   Search,
   Printer,
   Trash2,
+  Edit3,
   ArrowUpCircle,
   CheckSquare,
   Square,
@@ -41,9 +42,6 @@ import {
   RotateCcw,
   Ban,
   LogOut,
-  RefreshCw,
-  Upload,
-  CheckCircle2,
 } from "lucide-react";
 
 // ============================================================================
@@ -70,72 +68,6 @@ const estiloLogoBranca = {
   mixBlendMode: "screen",
 };
 
-// ============================================================================
-// BASE NATIVA DE INSUMOS SINAPI/SC (Infraestrutura, Drenagem, Pavimentação, Obras)
-// Chave normalizada (sem zeros à esquerda) para busca instantânea exata
-// ============================================================================
-const CATALOGO_SINAPI_SC_NATIVO = {
-  // AGREGADOS E SOLOS
-  "366": { codigo: "00000366", nome: "AREIA FINA - POSTO JAZIDA/FORNECEDOR (SEM TRANSPORTE)", unidade: "M3", preco: 108.00, categoria: "Agregados / Infraestrutura" },
-  "367": { codigo: "00000367", nome: "AREIA GROSSA - POSTO JAZIDA/FORNECEDOR (SEM TRANSPORTE)", unidade: "M3", preco: 118.50, categoria: "Agregados / Infraestrutura" },
-  "370": { codigo: "00000370", nome: "AREIA MEDIA - POSTO JAZIDA/FORNECEDOR (SEM TRANSPORTE)", unidade: "M3", preco: 115.00, categoria: "Agregados / Infraestrutura" },
-  "4720": { codigo: "00004720", nome: "PEDRA BRITADA N. 0 OU PEDRISCO (4,8 A 9,5 MM)", unidade: "M3", preco: 102.00, categoria: "Agregados / Infraestrutura" },
-  "4721": { codigo: "00004721", nome: "PEDRA BRITADA N. 1 (9,5 A 19 MM) POSTO PEDREIRA/FORNECEDOR", unidade: "M3", preco: 98.50, categoria: "Agregados / Infraestrutura" },
-  "4718": { codigo: "00004718", nome: "PEDRA BRITADA N. 2 (19 A 38 MM) POSTO PEDREIRA/FORNECEDOR", unidade: "M3", preco: 96.00, categoria: "Agregados / Infraestrutura" },
-  "4719": { codigo: "00004719", nome: "PEDRA BRITADA N. 3 (38 A 76 MM) POSTO PEDREIRA/FORNECEDOR", unidade: "M3", preco: 94.00, categoria: "Agregados / Infraestrutura" },
-  "4729": { codigo: "00004729", nome: "PO DE PEDRA (POSTO PEDREIRA/FORNECEDOR, SEM FRETE)", unidade: "M3", preco: 89.00, categoria: "Agregados / Infraestrutura" },
-  "4730": { codigo: "00004730", nome: "PEDRA DE MAO OU PEDRA RACHAO PARA ARRIMO/FUNDACAO", unidade: "M3", preco: 88.50, categoria: "Agregados / Infraestrutura" },
-  "680": { codigo: "00000680", nome: "BRITA GRADUADA SIMPLES (BGS)", unidade: "M3", preco: 112.00, categoria: "Pavimentação / Urbanismo" },
-
-  // CIMENTO, CAL, ARGAMASSA E CONCRETO
-  "1379": { codigo: "00001379", nome: "CIMENTO PORTLAND COMPOSTO CP II-32", unidade: "KG", preco: 0.78, categoria: "Aglomerantes / Alvenaria" },
-  "1377": { codigo: "00001377", nome: "CIMENTO PORTLAND DE ALTA RESISTENCIA INICIAL CP V-ARI", unidade: "KG", preco: 0.89, categoria: "Aglomerantes / Alvenaria" },
-  "1106": { codigo: "00001106", nome: "CAL HIDRATADA CH-I PARA ARGAMASSAS", unidade: "KG", preco: 0.92, categoria: "Aglomerantes / Alvenaria" },
-  "1524": { codigo: "00001524", nome: "CONCRETO USINADO BOMBEAVEL, FCK 20 MPA, SLUMP 100 +/- 20 MM", unidade: "M3", preco: 465.00, categoria: "Concretos / Estruturas" },
-  "1525": { codigo: "00001525", nome: "CONCRETO USINADO BOMBEAVEL, FCK 25 MPA, SLUMP 100 +/- 20 MM", unidade: "M3", preco: 492.00, categoria: "Concretos / Estruturas" },
-  "1527": { codigo: "00001527", nome: "CONCRETO USINADO BOMBEAVEL, FCK 30 MPA, SLUMP 100 +/- 20 MM", unidade: "M3", preco: 525.00, categoria: "Concretos / Estruturas" },
-
-  // DRENAGEM - TUBOS DE CONCRETO E PEAD
-  "7777": { codigo: "00007777", nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS1, DN 300 MM", unidade: "M", preco: 68.50, categoria: "Infraestrutura / Drenagem" },
-  "7778": { codigo: "00007778", nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS1, DN 400 MM", unidade: "M", preco: 94.20, categoria: "Infraestrutura / Drenagem" },
-  "7780": { codigo: "00007780", nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS1, DN 500 MM", unidade: "M", preco: 132.00, categoria: "Infraestrutura / Drenagem" },
-  "7781": { codigo: "00007781", nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS1, DN 600 MM", unidade: "M", preco: 168.40, categoria: "Infraestrutura / Drenagem" },
-  "7761": { codigo: "00007761", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-1, DN 600 MM", unidade: "M", preco: 215.00, categoria: "Infraestrutura / Drenagem" },
-  "7762": { codigo: "00007762", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-1, DN 800 MM", unidade: "M", preco: 342.00, categoria: "Infraestrutura / Drenagem" },
-  "7765": { codigo: "00007765", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-1, DN 1000 MM", unidade: "M", preco: 495.00, categoria: "Infraestrutura / Drenagem" },
-  "7768": { codigo: "00007768", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-1, DN 1200 MM", unidade: "M", preco: 685.00, categoria: "Infraestrutura / Drenagem" },
-  "37448": { codigo: "00037448", nome: "TUBO PEAD CORRUGADO DUPLA PAREDE PARA DRENAGEM PLUVIAL DN 400 MM", unidade: "M", preco: 145.00, categoria: "Infraestrutura / Drenagem" },
-  "37449": { codigo: "00037449", nome: "TUBO PEAD CORRUGADO DUPLA PAREDE PARA DRENAGEM PLUVIAL DN 600 MM", unidade: "M", preco: 310.00, categoria: "Infraestrutura / Drenagem" },
-  "40888": { codigo: "00040888", nome: "MANTA GEOTEXTIL NAO TECIDO AGULHADO DE FILAMENTOS CONTINUOS 100% POLIESTER (200 G/M2)", unidade: "M2", preco: 8.90, categoria: "Infraestrutura / Drenagem" },
-
-  // TAMPÕES, GRELHAS E ARTEFATOS DE DRENAGEM
-  "43132": { codigo: "00043132", nome: "TAMPAO DE FERRO FUNDIDO DUCTIL PARA POCO DE VISITA, CLASSE D400, DN 600 MM", unidade: "UN", preco: 620.00, categoria: "Infraestrutura / Drenagem" },
-  "3146": { codigo: "00003146", nome: "GRELHA DE FERRO FUNDIDO PARA BOCA DE LOBO, 30 X 90 CM", unidade: "UN", preco: 385.00, categoria: "Infraestrutura / Drenagem" },
-  "10908": { codigo: "00010908", nome: "GRELHA DE CONCRETO ARMADO PARA BOCA DE LOBO 40 X 100 CM", unidade: "UN", preco: 142.00, categoria: "Infraestrutura / Drenagem" },
-
-  // PAVIMENTAÇÃO, ASFALTO E URBANISMO
-  "1518": { codigo: "00001518", nome: "CONCRETO ASFALTICO USINADO A QUENTE (CBUQ) PARA CAPA DE ROLAMENTO", unidade: "T", preco: 485.00, categoria: "Pavimentação / Urbanismo" },
-  "2705": { codigo: "00002705", nome: "EMULSAO ASFALTICA PARA IMPRIMACAO / PINTURA DE LIGACAO RR-1C", unidade: "KG", preco: 4.90, categoria: "Pavimentação / Urbanismo" },
-  "2707": { codigo: "00002707", nome: "ASFALTO DILUIDO CM-30 PARA IMPRIMACAO", unidade: "KG", preco: 6.45, categoria: "Pavimentação / Urbanismo" },
-  "4059": { codigo: "00004059", nome: "MEIO-FIO OU GUIA DE CONCRETO, PRE-MOLDADO, COMP 1 M, 30 X 15/12 CM", unidade: "M", preco: 42.80, categoria: "Pavimentação / Urbanismo" },
-  "689": { codigo: "00000689", nome: "BLOCO INTERTRAVADO DE CONCRETO (PAVER) 10 X 20 CM, ESPESSURA 6 CM, 35 MPA", unidade: "M2", preco: 54.00, categoria: "Pavimentação / Urbanismo" },
-  "690": { codigo: "00000690", nome: "BLOCO INTERTRAVADO DE CONCRETO (PAVER) 10 X 20 CM, ESPESSURA 8 CM, 35 MPA", unidade: "M2", preco: 64.50, categoria: "Pavimentação / Urbanismo" },
-  "36154": { codigo: "00036154", nome: "PISO PODOTATIL DE CONCRETO (DIRECIONAL OU ALERTA) 40 X 40 CM", unidade: "M2", preco: 78.00, categoria: "Pavimentação / Urbanismo" },
-
-  // ALVENARIA, BLOCOS E TIJOLOS
-  "685": { codigo: "00000685", nome: "BLOCO DE CONCRETO ESTRUTURAL 14 X 19 X 39 CM, FBK 4,5 MPA", unidade: "UN", preco: 4.35, categoria: "Aglomerantes / Alvenaria" },
-  "656": { codigo: "00000656", nome: "BLOCO DE CONCRETO DE VEDACAO 14 X 19 X 39 CM", unidade: "UN", preco: 3.65, categoria: "Aglomerantes / Alvenaria" },
-  "7258": { codigo: "00007258", nome: "TIJOLO CERAMICO MACICO 5 X 10 X 20 CM", unidade: "UN", preco: 0.95, categoria: "Aglomerantes / Alvenaria" },
-  "7266": { codigo: "00007266", nome: "BLOCO CERAMICO (TIJOLO FURADO) 9 X 19 X 19 CM", unidade: "UN", preco: 1.35, categoria: "Aglomerantes / Alvenaria" },
-
-  // AÇO E ARMADURAS
-  "32": { codigo: "00000032", nome: "ACO CA-50, 8,0 MM, VERGALHAO", unidade: "KG", preco: 7.95, categoria: "Aço / Estruturas" },
-  "34": { codigo: "00000034", nome: "ACO CA-50, 10,0 MM (3/8), VERGALHAO", unidade: "KG", preco: 7.75, categoria: "Aço / Estruturas" },
-  "35": { codigo: "00000035", nome: "ACO CA-50, 12,5 MM (1/2), VERGALHAO", unidade: "KG", preco: 7.60, categoria: "Aço / Estruturas" },
-  "43": { codigo: "00000043", nome: "ACO CA-60, 5,0 MM, VERGALHAO", unidade: "KG", preco: 8.15, categoria: "Aço / Estruturas" },
-  "7156": { codigo: "00007156", nome: "TELA DE ACO SOLDADA NERVURADA CA-60, Q-138, MALHA 10 X 10 CM", unidade: "M2", preco: 26.80, categoria: "Aço / Estruturas" },
-};
-
 // Lista oficial de Requerentes / Destinos
 const LISTA_REQUERENTES = [
   "INTENDÊNCIA DE CANASVIEIRAS",
@@ -159,34 +91,15 @@ const LISTA_REQUERENTES = [
   "DIRETORIA DE SERVIÇOS",
 ];
 
-// Extrai a chave numérica sem zeros à esquerda (ex: "00007778" -> "7778")
-const extrairChaveNumerica = (valor) => {
-  const apenasDigitos = String(valor || "").replace(/\D/g, "");
-  if (!apenasDigitos) return "";
-  return String(Number(apenasDigitos));
-};
-
 export default function App() {
   // Estados de Autenticação
   const [user, setUser] = useState(null);
   const [verificandoAuth, setVerificandoAuth] = useState(true);
   const [lembrarDeMim, setLembrarDeMim] = useState(true);
 
-  // Estados principais sincronizados com o Firestore + Catálogo SINAPI/SC
+  // Estados principais sincronizados com o Firestore
   const [materiais, setMateriais] = useState([]);
   const [romaneios, setRomaneios] = useState([]);
-  const [catalogoSinapi, setCatalogoSinapi] = useState(() => {
-    try {
-      const salvoLocal = localStorage.getItem("catalogo_sinapi_sc_v1");
-      if (salvoLocal) {
-        return { ...CATALOGO_SINAPI_SC_NATIVO, ...JSON.parse(salvoLocal) };
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return CATALOGO_SINAPI_SC_NATIVO;
-  });
-
   const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState("estoque"); // "estoque" | "romaneios"
   const [busca, setBusca] = useState("");
@@ -195,21 +108,23 @@ export default function App() {
 
   // Estados dos Modais
   const [modalNovoMaterial, setModalNovoMaterial] = useState(false);
+  const [modalEditarMaterial, setModalEditarMaterial] = useState(false);
   const [modalEntradaRapida, setModalEntradaRapida] = useState(false);
   const [modalNovoPedido, setModalNovoPedido] = useState(false);
-  const [modalSinapi, setModalSinapi] = useState(false);
 
-  // Estado do formulário de Novo Material (SOMENTE Código SINAPI)
+  // Estado do formulário de Novo Material
   const [novoMaterial, setNovoMaterial] = useState({
-    codigoSinapi: "",
+    codigo: "",
     nome: "",
     categoria: "Infraestrutura / Drenagem",
-    unidade: "",
+    unidade: "UN",
     quantidade: "",
     estoqueMinimo: "",
     preco: "",
   });
-  const [insumoEncontrado, setInsumoEncontrado] = useState(false);
+
+  // Estado de Edição de Material
+  const [materialEditando, setMaterialEditando] = useState(null);
 
   // Estado de Entrada Rápida de Estoque
   const [entradaMaterialId, setEntradaMaterialId] = useState("");
@@ -219,11 +134,6 @@ export default function App() {
   const [itensSelecionados, setItensSelecionados] = useState([]);
   const [requerente, setRequerente] = useState(LISTA_REQUERENTES[0]);
   const [autorizacao, setAutorizacao] = useState("");
-
-  // Estados da Tabela SINAPI/SC
-  const [mesReferenciaSinapi, setMesReferenciaSinapi] = useState("10/2026");
-  const [percentualSinapi, setPercentualSinapi] = useState("");
-  const [processandoSinapi, setProcessandoSinapi] = useState(false);
 
   // ==========================================================================
   // 2. MONITORAMENTO DE AUTENTICAÇÃO E FIRESTORE
@@ -281,65 +191,7 @@ export default function App() {
   }, [user]);
 
   // ==========================================================================
-  // 3. BUSCA E AUTOPREENCHIMENTO IMEDIATO PELA TABELA SINAPI/SC
-  // ==========================================================================
-  const handleChangeCodigoSinapi = (valorDigitado) => {
-    const chaveNum = extrairChaveNumerica(valorDigitado);
-    const itemExato = chaveNum ? catalogoSinapi[chaveNum] : null;
-
-    if (itemExato) {
-      setInsumoEncontrado(true);
-      setNovoMaterial((prev) => ({
-        ...prev,
-        codigoSinapi: valorDigitado,
-        nome: itemExato.nome,
-        unidade: itemExato.unidade,
-        preco: String(itemExato.preco),
-        categoria: itemExato.categoria || prev.categoria,
-      }));
-    } else {
-      setInsumoEncontrado(false);
-      setNovoMaterial((prev) => ({
-        ...prev,
-        codigoSinapi: valorDigitado,
-      }));
-    }
-  };
-
-  // Selecionar um item clicando na lista de sugestões abaixo do campo
-  const selecionarSugestaoSinapi = (item) => {
-    setInsumoEncontrado(true);
-    setNovoMaterial((prev) => ({
-      ...prev,
-      codigoSinapi: item.codigo,
-      nome: item.nome,
-      unidade: item.unidade,
-      preco: String(item.preco),
-      categoria: item.categoria || prev.categoria,
-    }));
-  };
-
-  // Lista de sugestões dinâmicas ao digitar código parcial ou nome no campo Código SINAPI
-  const sugestoesSinapi = useMemo(() => {
-    const termo = (novoMaterial.codigoSinapi || "").trim().toLowerCase();
-    if (!termo || insumoEncontrado) return [];
-    const termoNumerico = extrairChaveNumerica(termo);
-
-    return Object.values(catalogoSinapi)
-      .filter((item) => {
-        const codStr = (item.codigo || "").toLowerCase();
-        const nomeStr = (item.nome || "").toLowerCase();
-        return (
-          codStr.includes(termo) ||
-          (termoNumerico && codStr.includes(termoNumerico)) ||
-          nomeStr.includes(termo)
-        );
-      })
-      .slice(0, 6);
-  }, [novoMaterial.codigoSinapi, catalogoSinapi, insumoEncontrado]);
-
-  // ==========================================================================
-  // 4. FUNÇÕES DE LOGIN (COM "LEMBRAR DE MIM") E LOGOUT
+  // 3. FUNÇÕES DE LOGIN (COM "LEMBRAR DE MIM") E LOGOUT
   // ==========================================================================
   const handleLoginGoogle = async () => {
     try {
@@ -364,7 +216,7 @@ export default function App() {
   };
 
   // ==========================================================================
-  // 5. INDICADORES DO DASHBOARD
+  // 4. INDICADORES DO DASHBOARD
   // ==========================================================================
   const indicadores = useMemo(() => {
     const totalItens = materiais.length;
@@ -393,76 +245,83 @@ export default function App() {
     return materiais.filter(
       (m) =>
         (m.nome || "").toLowerCase().includes(termo) ||
-        (m.codigoSinapi || m.codigo || "").toLowerCase().includes(termo) ||
+        (m.codigo || m.codigoSinapi || "").toLowerCase().includes(termo) ||
         (m.categoria || "").toLowerCase().includes(termo)
     );
   }, [materiais, busca]);
 
   // ==========================================================================
-  // 6. CADASTRO POR CÓDIGO SINAPI, ENTRADA RÁPIDA E IMPORTAÇÃO SINAPI/SC
+  // 5. CADASTRO, EDIÇÃO, ENTRADA RÁPIDA E EXCLUSÃO DE MATERIAIS
   // ==========================================================================
   const handleCadastrarMaterial = async (e) => {
     e.preventDefault();
-    const apenasNumeros = String(novoMaterial.codigoSinapi || "").replace(
-      /\D/g,
-      ""
-    );
-    const codFinal = apenasNumeros
-      ? apenasNumeros.padStart(8, "0")
-      : novoMaterial.codigoSinapi.trim();
-
-    if (!codFinal) {
-      return alert("Digite o Código SINAPI do material.");
-    }
-    if (!novoMaterial.nome.trim()) {
-      return alert("Informe ou selecione a descrição do insumo SINAPI/SC.");
-    }
+    if (!novoMaterial.nome.trim()) return alert("Informe o nome do material.");
 
     try {
       await addDoc(collection(db, "materiais"), {
-        codigoSinapi: codFinal,
+        codigo:
+          novoMaterial.codigo.trim() || `MAT-${String(Date.now()).slice(-4)}`,
         nome: novoMaterial.nome.trim(),
         categoria: novoMaterial.categoria,
         unidade: novoMaterial.unidade.trim() || "UN",
         quantidade: Number(novoMaterial.quantidade || 0),
         estoqueMinimo: Number(novoMaterial.estoqueMinimo || 0),
         preco: Number(String(novoMaterial.preco).replace(",", ".") || 0),
-        referenciaPreco: `SINAPI/SC (${mesReferenciaSinapi})`,
         criadoPor: user.email,
         criadoEm: serverTimestamp(),
       });
 
-      // Também adiciona ao catálogo local caso seja um código novo digitado manualmente
-      const chave = extrairChaveNumerica(codFinal);
-      if (chave && !catalogoSinapi[chave]) {
-        const atualizado = {
-          ...catalogoSinapi,
-          [chave]: {
-            codigo: codFinal,
-            nome: novoMaterial.nome.trim(),
-            unidade: novoMaterial.unidade.trim() || "UN",
-            preco: Number(String(novoMaterial.preco).replace(",", ".") || 0),
-            categoria: novoMaterial.categoria,
-          },
-        };
-        setCatalogoSinapi(atualizado);
-        localStorage.setItem("catalogo_sinapi_sc_v1", JSON.stringify(atualizado));
-      }
-
       setNovoMaterial({
-        codigoSinapi: "",
+        codigo: "",
         nome: "",
         categoria: "Infraestrutura / Drenagem",
-        unidade: "",
+        unidade: "UN",
         quantidade: "",
         estoqueMinimo: "",
         preco: "",
       });
-      setInsumoEncontrado(false);
       setModalNovoMaterial(false);
     } catch (erro) {
       console.error("Erro ao cadastrar material:", erro);
       alert("Erro ao salvar material no Firestore: " + erro.message);
+    }
+  };
+
+  const abrirModalEdicao = (mat) => {
+    setMaterialEditando({
+      id: mat.id,
+      codigo: mat.codigo || mat.codigoSinapi || "",
+      nome: mat.nome || "",
+      categoria: mat.categoria || "Infraestrutura / Drenagem",
+      unidade: mat.unidade || "UN",
+      quantidade: Number(mat.quantidade || 0),
+      estoqueMinimo: Number(mat.estoqueMinimo || 0),
+      preco: Number(mat.preco || 0),
+    });
+    setModalEditarMaterial(true);
+  };
+
+  const handleSalvarEdicaoMaterial = async (e) => {
+    e.preventDefault();
+    if (!materialEditando || !materialEditando.nome.trim()) return;
+
+    try {
+      await updateDoc(doc(db, "materiais", String(materialEditando.id)), {
+        codigo: materialEditando.codigo.trim() || "-",
+        nome: materialEditando.nome.trim(),
+        categoria: materialEditando.categoria,
+        unidade: materialEditando.unidade.trim() || "UN",
+        quantidade: Number(materialEditando.quantidade || 0),
+        estoqueMinimo: Number(materialEditando.estoqueMinimo || 0),
+        preco: Number(String(materialEditando.preco).replace(",", ".") || 0),
+        atualizadoPor: user.email,
+        ultimaMovimentacao: serverTimestamp(),
+      });
+      setModalEditarMaterial(false);
+      setMaterialEditando(null);
+    } catch (erro) {
+      console.error("Erro ao editar material:", erro);
+      alert("Não foi possível salvar as alterações: " + erro.message);
     }
   };
 
@@ -503,179 +362,8 @@ export default function App() {
     }
   };
 
-  // 6.1. Aplicar índice percentual mensal SINAPI/SC em lote
-  const handleReajustePercentualSinapi = async (e) => {
-    e.preventDefault();
-    const perc = Number(String(percentualSinapi).replace(",", "."));
-    if (isNaN(perc) || perc === 0) {
-      return alert(
-        "Informe um percentual válido de variação mensal SINAPI/SC (ex: 0.45 para +0,45%)."
-      );
-    }
-
-    if (
-      !window.confirm(
-        `Confirma aplicar o reajuste SINAPI/SC de ${perc}% (Ref: ${mesReferenciaSinapi}) em todos os ${materiais.length} materiais do estoque?`
-      )
-    ) {
-      return;
-    }
-
-    setProcessandoSinapi(true);
-    try {
-      const batch = writeBatch(db);
-      const fator = 1 + perc / 100;
-
-      for (const mat of materiais) {
-        const precoAtual = Number(mat.preco || 0);
-        const novoPreco = Number((precoAtual * fator).toFixed(2));
-        const matRef = doc(db, "materiais", String(mat.id));
-        batch.update(matRef, {
-          preco: novoPreco,
-          referenciaPreco: `SINAPI/SC ${mesReferenciaSinapi} (${perc > 0 ? "+" : ""}${perc}%)`,
-          atualizadoPor: user.email,
-          ultimaMovimentacao: serverTimestamp(),
-        });
-      }
-
-      await batch.commit();
-      setPercentualSinapi("");
-      setModalSinapi(false);
-      alert("Preços atualizados com sucesso pela variação mensal do SINAPI/SC!");
-    } catch (erro) {
-      console.error("Erro ao reajustar pelo SINAPI/SC:", erro);
-      alert("Erro ao atualizar preços: " + erro.message);
-    } finally {
-      setProcessandoSinapi(false);
-    }
-  };
-
-  // 6.2. Leitor Universal de CSV da Tabela Oficial de Insumos SINAPI/SC (Caixa)
-  const handleImportarCSVSinapi = async (evento) => {
-    const arquivo = evento.target.files?.[0];
-    if (!arquivo) return;
-
-    setProcessandoSinapi(true);
-    try {
-      // Lê o buffer em ISO-8859-1 / UTF-8 para suportar acentos do Excel da Caixa
-      const buffer = await arquivo.arrayBuffer();
-      const decoder = new TextDecoder("iso-8859-1");
-      const texto = decoder.decode(buffer);
-      const linhas = texto.split(/\r?\n/);
-
-      const novoMapaCatalogo = { ...catalogoSinapi };
-      let totalInsumosLidos = 0;
-
-      for (const linha of linhas) {
-        const colunas = linha
-          .split(/[;\t]/)
-          .map((c) => c.replace(/"/g, "").trim())
-          .filter((c) => c !== "");
-
-        if (colunas.length >= 3) {
-          // Procura a coluna que contém o código SINAPI (4 a 8 dígitos numéricos)
-          const primeiraColNumerica = colunas[0].replace(/\D/g, "");
-          if (
-            primeiraColNumerica.length >= 1 &&
-            primeiraColNumerica.length <= 8 &&
-            /^\d+$/.test(primeiraColNumerica)
-          ) {
-            const chave = String(Number(primeiraColNumerica));
-            const codPadrao = primeiraColNumerica.padStart(8, "0");
-
-            // Identifica o preço na última coluna numérica da linha
-            let precoEncontrado = 0;
-            for (let i = colunas.length - 1; i >= 1; i--) {
-              const limpo = colunas[i]
-                .replace("R$", "")
-                .replace(/\./g, "")
-                .replace(",", ".")
-                .trim();
-              const num = Number(limpo);
-              if (!isNaN(num) && num > 0 && /\d/.test(limpo)) {
-                precoEncontrado = num;
-                break;
-              }
-            }
-
-            if (precoEncontrado > 0) {
-              const descricao = colunas[1] || `Insumo SINAPI ${codPadrao}`;
-              const unidade =
-                colunas[2] && colunas[2].length <= 6 ? colunas[2].toUpperCase() : "UN";
-
-              novoMapaCatalogo[chave] = {
-                codigo: codPadrao,
-                nome: descricao,
-                unidade,
-                preco: precoEncontrado,
-                categoria: "Infraestrutura / SINAPI-SC",
-              };
-              totalInsumosLidos++;
-            }
-          }
-        }
-      }
-
-      if (totalInsumosLidos === 0) {
-        alert(
-          "Não foi possível identificar linhas de insumos no arquivo. Salve a planilha SINAPI/SC do Excel como 'CSV (separado por ponto e vírgula)'."
-        );
-        setProcessandoSinapi(false);
-        return;
-      }
-
-      // Salva no estado e no navegador para autopreenchimento instantâneo de todos os códigos
-      setCatalogoSinapi(novoMapaCatalogo);
-      try {
-        localStorage.setItem(
-          "catalogo_sinapi_sc_v1",
-          JSON.stringify(novoMapaCatalogo)
-        );
-      } catch (e) {
-        console.warn("Catálogo muito grande para localStorage, mantido em memória.");
-      }
-
-      // Atualiza no Firestore o preço de todos os materiais já existentes no estoque
-      const batch = writeBatch(db);
-      let estoqueAtualizados = 0;
-
-      for (const mat of materiais) {
-        const chaveMat = extrairChaveNumerica(mat.codigoSinapi || mat.codigo);
-        if (chaveMat && novoMapaCatalogo[chaveMat]) {
-          const dadosOficiais = novoMapaCatalogo[chaveMat];
-          const matRef = doc(db, "materiais", String(mat.id));
-          batch.update(matRef, {
-            codigoSinapi: dadosOficiais.codigo,
-            nome: dadosOficiais.nome || mat.nome,
-            unidade: dadosOficiais.unidade || mat.unidade,
-            preco: dadosOficiais.preco,
-            referenciaPreco: `SINAPI/SC (${mesReferenciaSinapi})`,
-            atualizadoPor: user.email,
-            ultimaMovimentacao: serverTimestamp(),
-          });
-          estoqueAtualizados++;
-        }
-      }
-
-      if (estoqueAtualizados > 0) {
-        await batch.commit();
-      }
-
-      alert(
-        `Tabela SINAPI/SC (${mesReferenciaSinapi}) importada com sucesso!\n\n• ${totalInsumosLidos} insumos agora estão disponíveis para autopreenchimento ao digitar o código.\n• ${estoqueAtualizados} materiais do estoque tiveram seus preços atualizados.`
-      );
-      setModalSinapi(false);
-    } catch (erro) {
-      console.error("Erro ao ler CSV SINAPI/SC:", erro);
-      alert("Erro ao processar arquivo CSV SINAPI/SC: " + erro.message);
-    } finally {
-      setProcessandoSinapi(false);
-      evento.target.value = "";
-    }
-  };
-
   // ==========================================================================
-  // 7. LÓGICA DE PEDIDOS E ROMANEIO EM PDF (SEM VALORES FINANCEIROS)
+  // 6. LÓGICA DE PEDIDOS E ROMANEIO EM PDF (SEM VALORES FINANCEIROS)
   // ==========================================================================
   const toggleSelecaoMaterial = (material) => {
     setItensSelecionados((prev) => {
@@ -687,7 +375,7 @@ export default function App() {
           ...prev,
           {
             id: material.id,
-            codigoSinapi: material.codigoSinapi || material.codigo || "-",
+            codigo: material.codigo || material.codigoSinapi || "-",
             nome: material.nome || "Material sem nome",
             unidade: material.unidade || "UN",
             estoqueAtual: Number(material.quantidade || 0),
@@ -726,7 +414,7 @@ export default function App() {
         (item, idx) => `
         <tr>
           <td style="text-align: center;">${idx + 1}</td>
-          <td style="text-align: center; font-family: monospace;">${item.codigoSinapi || item.codigo || "-"}</td>
+          <td style="text-align: center; font-family: monospace;">${item.codigo || item.codigoSinapi || "-"}</td>
           <td>${item.nome}</td>
           <td style="text-align: center;">${item.unidade}</td>
           <td style="text-align: right; font-weight: bold;">${Number(item.qtdPedido)}</td>
@@ -779,8 +467,8 @@ export default function App() {
           <thead>
             <tr>
               <th style="width: 45px; text-align: center;">Item</th>
-              <th style="width: 115px; text-align: center;">Código SINAPI</th>
-              <th>Especificação do Material (SINAPI/SC)</th>
+              <th style="width: 110px; text-align: center;">Código</th>
+              <th>Especificação do Material</th>
               <th style="width: 75px; text-align: center;">Unid.</th>
               <th style="width: 100px; text-align: right;">Quantidade</th>
             </tr>
@@ -962,7 +650,7 @@ export default function App() {
               Acesso ao Almoxarifado
             </h1>
             <p className="text-slate-400 text-sm">
-              Controle de Materiais (SINAPI/SC), Pedidos e Romaneios
+              Controle de Materiais, Pedidos e Romaneios
             </p>
           </div>
 
@@ -1017,7 +705,7 @@ export default function App() {
                 Controle de Materiais & Romaneios
               </h1>
               <p className="text-xs text-slate-400">
-                Secretaria de Infraestrutura e Manutenção • Base SINAPI/SC ({Object.keys(catalogoSinapi).length} insumos ativos)
+                Secretaria de Infraestrutura e Manutenção da Cidade
               </p>
             </div>
           </div>
@@ -1056,19 +744,13 @@ export default function App() {
             onClick={() => setModalNovoMaterial(true)}
             className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-medium border border-slate-700 transition"
           >
-            <Plus className="w-4 h-4" /> Incluir Material (SINAPI/SC)
+            <Plus className="w-4 h-4" /> Novo Material
           </button>
           <button
             onClick={() => setModalEntradaRapida(true)}
             className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-sm font-medium transition"
           >
             <ArrowUpCircle className="w-4 h-4" /> Entrada Rápida
-          </button>
-          <button
-            onClick={() => setModalSinapi(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-xl text-sm font-medium transition"
-          >
-            <RefreshCw className="w-4 h-4" /> Tabela SINAPI/SC ({Object.keys(catalogoSinapi).length})
           </button>
           <button
             onClick={() => setModalNovoPedido(true)}
@@ -1103,7 +785,7 @@ export default function App() {
           <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center justify-between">
             <div>
               <p className="text-xs uppercase tracking-wider text-slate-400">
-                Valor em Estoque (SINAPI/SC)
+                Valor em Estoque
               </p>
               <p className="text-2xl font-bold mt-1 text-emerald-400">
                 R$ {indicadores.valorTotalEstoque.toFixed(2)}
@@ -1155,7 +837,7 @@ export default function App() {
                 type="text"
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
-                placeholder="Buscar por código SINAPI ou descrição..."
+                placeholder="Buscar por nome, código ou categoria..."
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
               />
             </div>
@@ -1169,12 +851,12 @@ export default function App() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-950/60 border-b border-slate-800 text-slate-400 text-xs uppercase">
-                    <th className="py-3.5 px-4">Código SINAPI</th>
-                    <th className="py-3.5 px-4">Descrição do Insumo (SINAPI/SC)</th>
+                    <th className="py-3.5 px-4">Código</th>
+                    <th className="py-3.5 px-4">Material</th>
                     <th className="py-3.5 px-4">Categoria</th>
                     <th className="py-3.5 px-4 text-center">Unid.</th>
                     <th className="py-3.5 px-4 text-right">Saldo</th>
-                    <th className="py-3.5 px-4 text-right">Preço SINAPI</th>
+                    <th className="py-3.5 px-4 text-right">Custo Un.</th>
                     <th className="py-3.5 px-4 text-center">Status</th>
                     <th className="py-3.5 px-4 text-center">Ações</th>
                   </tr>
@@ -1198,14 +880,14 @@ export default function App() {
                         key={mat.id}
                         className="hover:bg-slate-800/40 transition"
                       >
-                        <td className="py-3 px-4 font-mono text-xs font-semibold text-amber-400">
-                          {mat.codigoSinapi || mat.codigo || "-"}
+                        <td className="py-3 px-4 font-mono text-xs text-slate-400">
+                          {mat.codigo || mat.codigoSinapi || "-"}
                         </td>
                         <td className="py-3 px-4 font-medium text-white">
                           {mat.nome}
                         </td>
                         <td className="py-3 px-4 text-slate-400">
-                          {mat.categoria || "Infraestrutura"}
+                          {mat.categoria || "Geral"}
                         </td>
                         <td className="py-3 px-4 text-center text-slate-300">
                           {mat.unidade || "UN"}
@@ -1229,15 +911,24 @@ export default function App() {
                           )}
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <button
-                            onClick={() =>
-                              handleExcluirMaterial(mat.id, mat.nome)
-                            }
-                            className="p-1.5 text-slate-400 hover:text-red-400 transition"
-                            title="Excluir"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => abrirModalEdicao(mat)}
+                              className="p-1.5 text-slate-400 hover:text-blue-400 transition"
+                              title="Editar material / atualizar preço"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleExcluirMaterial(mat.id, mat.nome)
+                              }
+                              className="p-1.5 text-slate-400 hover:text-red-400 transition"
+                              title="Excluir"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -1248,7 +939,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ABA ROMANEIOS */}
+        {/* ABA ROMANEIOS (SEM COLUNA DE VALOR TOTAL) */}
         {abaAtiva === "romaneios" && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
             <div className="overflow-x-auto">
@@ -1331,17 +1022,12 @@ export default function App() {
         )}
       </div>
 
-      {/* MODAL 1: INCLUIR MATERIAL PELO CÓDIGO SINAPI/SC COM AUTOCOMPLETE */}
+      {/* MODAL 1: CADASTRAR NOVO MATERIAL */}
       {modalNovoMaterial && (
         <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 max-h-[92vh] overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div>
-                <h2 className="text-lg font-bold">Incluir Material (SINAPI/SC)</h2>
-                <p className="text-xs text-slate-400">
-                  Digite o Código SINAPI (ex: 7778, 370, 4721) ou parte do nome para autopreencher
-                </p>
-              </div>
+              <h2 className="text-lg font-bold">Novo Material</h2>
               <button
                 onClick={() => setModalNovoMaterial(false)}
                 className="text-slate-400 hover:text-white"
@@ -1349,93 +1035,29 @@ export default function App() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <form onSubmit={handleCadastrarMaterial} className="space-y-4">
-              {/* Campo Principal: Código SINAPI + Lista de Sugestões */}
-              <div className="bg-slate-950 border border-amber-500/40 rounded-xl p-3.5 space-y-2 relative">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-semibold text-amber-400 uppercase">
-                    Código SINAPI (ou pesquise pelo nome) *
-                  </label>
-                  {insumoEncontrado && (
-                    <span className="inline-flex items-center gap-1 text-xs text-emerald-400 font-medium">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Preenchido pela SINAPI/SC
-                    </span>
-                  )}
-                </div>
-
-                <input
-                  type="text"
-                  required
-                  autoFocus
-                  placeholder="Digite o código (ex: 7778, 370, 1379) ou nome (ex: tubo, brita)..."
-                  value={novoMaterial.codigoSinapi}
-                  onChange={(e) => handleChangeCodigoSinapi(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 focus:border-amber-400 rounded-xl px-3.5 py-2.5 text-base font-mono text-white focus:outline-none"
-                />
-
-                {/* Dropdown de Sugestões Instantâneas SINAPI/SC */}
-                {sugestoesSinapi.length > 0 && (
-                  <div className="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden divide-y divide-slate-800 mt-1 max-h-48 overflow-y-auto shadow-xl">
-                    {sugestoesSinapi.map((item) => (
-                      <button
-                        type="button"
-                        key={item.codigo}
-                        onClick={() => selecionarSugestaoSinapi(item)}
-                        className="w-full text-left px-3 py-2 hover:bg-amber-500/15 transition flex items-center justify-between gap-2"
-                      >
-                        <div className="truncate">
-                          <span className="font-mono text-xs font-bold text-amber-400 mr-2">
-                            {item.codigo}
-                          </span>
-                          <span className="text-xs text-slate-200">
-                            {item.nome}
-                          </span>
-                        </div>
-                        <span className="text-xs font-semibold text-emerald-400 shrink-0">
-                          {item.unidade} • R$ {Number(item.preco).toFixed(2)}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                <p className="text-[11px] text-slate-400">
-                  Exemplos prontos: <code className="text-amber-300">7778</code> (Tubo 400mm),{" "}
-                  <code className="text-amber-300">7781</code> (Tubo 600mm),{" "}
-                  <code className="text-amber-300">370</code> (Areia),{" "}
-                  <code className="text-amber-300">4721</code> (Brita 1),{" "}
-                  <code className="text-amber-300">1379</code> (Cimento),{" "}
-                  <code className="text-amber-300">1518</code> (CBUQ),{" "}
-                  <code className="text-amber-300">4059</code> (Meio-fio)
-                </p>
-              </div>
-
-              {/* Campos Preenchidos Automaticamente pela Tabela SINAPI/SC */}
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">
-                  Descrição Oficial do Insumo (SINAPI/SC)
-                </label>
-                <textarea
-                  rows="2"
-                  required
-                  value={novoMaterial.nome}
-                  onChange={(e) =>
-                    setNovoMaterial({ ...novoMaterial, nome: e.target.value })
-                  }
-                  placeholder="Preenchido automaticamente ao digitar o código SINAPI..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200"
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-slate-400 mb-1">
-                    Unidade SINAPI
+                    Código (Opcional)
                   </label>
                   <input
                     type="text"
-                    required
+                    placeholder="Auto se vazio"
+                    value={novoMaterial.codigo}
+                    onChange={(e) =>
+                      setNovoMaterial({ ...novoMaterial, codigo: e.target.value })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Unidade
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="UN, M, M3, SC..."
                     value={novoMaterial.unidade}
                     onChange={(e) =>
                       setNovoMaterial({
@@ -1443,54 +1065,49 @@ export default function App() {
                         unidade: e.target.value,
                       })
                     }
-                    placeholder="Auto"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-center font-semibold text-amber-300"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">
-                    Preço SINAPI/SC (R$)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    required
-                    value={novoMaterial.preco}
-                    onChange={(e) =>
-                      setNovoMaterial({ ...novoMaterial, preco: e.target.value })
-                    }
-                    placeholder="Auto"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm font-semibold text-emerald-400"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">
-                    Categoria
-                  </label>
-                  <input
-                    type="text"
-                    value={novoMaterial.categoria}
-                    onChange={(e) =>
-                      setNovoMaterial({
-                        ...novoMaterial,
-                        categoria: e.target.value,
-                      })
-                    }
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
                   />
                 </div>
               </div>
-
-              <div className="grid grid-cols-2 gap-3 pt-1">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">
+                  Nome / Especificação do Material *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Tubo de Concreto DN 400mm"
+                  value={novoMaterial.nome}
+                  onChange={(e) =>
+                    setNovoMaterial({ ...novoMaterial, nome: e.target.value })
+                  }
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">
+                  Categoria
+                </label>
+                <input
+                  type="text"
+                  value={novoMaterial.categoria}
+                  onChange={(e) =>
+                    setNovoMaterial({
+                      ...novoMaterial,
+                      categoria: e.target.value,
+                    })
+                  }
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs text-slate-400 mb-1">
-                    Quantidade Inicial em Estoque *
+                    Estoque Inicial
                   </label>
                   <input
                     type="number"
                     min="0"
-                    required
                     value={novoMaterial.quantidade}
                     onChange={(e) =>
                       setNovoMaterial({
@@ -1503,7 +1120,7 @@ export default function App() {
                 </div>
                 <div>
                   <label className="block text-xs text-slate-400 mb-1">
-                    Estoque Mínimo (Alerta)
+                    Estoque Mínimo
                   </label>
                   <input
                     type="number"
@@ -1518,8 +1135,22 @@ export default function App() {
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
                   />
                 </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Custo Unit. (R$)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={novoMaterial.preco}
+                    onChange={(e) =>
+                      setNovoMaterial({ ...novoMaterial, preco: e.target.value })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                  />
+                </div>
               </div>
-
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
                 <button
                   type="button"
@@ -1532,7 +1163,7 @@ export default function App() {
                   type="submit"
                   className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold"
                 >
-                  Salvar Material
+                  Salvar
                 </button>
               </div>
             </form>
@@ -1540,7 +1171,162 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 2: ENTRADA RÁPIDA */}
+      {/* MODAL 2: EDITAR MATERIAL EXISTENTE */}
+      {modalEditarMaterial && materialEditando && (
+        <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h2 className="text-lg font-bold">Editar Material</h2>
+              <button
+                onClick={() => setModalEditarMaterial(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSalvarEdicaoMaterial} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Código
+                  </label>
+                  <input
+                    type="text"
+                    value={materialEditando.codigo}
+                    onChange={(e) =>
+                      setMaterialEditando({
+                        ...materialEditando,
+                        codigo: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Unidade
+                  </label>
+                  <input
+                    type="text"
+                    value={materialEditando.unidade}
+                    onChange={(e) =>
+                      setMaterialEditando({
+                        ...materialEditando,
+                        unidade: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">
+                  Nome / Especificação do Material *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={materialEditando.nome}
+                  onChange={(e) =>
+                    setMaterialEditando({
+                      ...materialEditando,
+                      nome: e.target.value,
+                    })
+                  }
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">
+                  Categoria
+                </label>
+                <input
+                  type="text"
+                  value={materialEditando.categoria}
+                  onChange={(e) =>
+                    setMaterialEditando({
+                      ...materialEditando,
+                      categoria: e.target.value,
+                    })
+                  }
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Saldo em Estoque
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={materialEditando.quantidade}
+                    onChange={(e) =>
+                      setMaterialEditando({
+                        ...materialEditando,
+                        quantidade: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Estoque Mínimo
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={materialEditando.estoqueMinimo}
+                    onChange={(e) =>
+                      setMaterialEditando({
+                        ...materialEditando,
+                        estoqueMinimo: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Custo Unit. (R$)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={materialEditando.preco}
+                    onChange={(e) =>
+                      setMaterialEditando({
+                        ...materialEditando,
+                        preco: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setModalEditarMaterial(false)}
+                  className="px-4 py-2 bg-slate-800 rounded-xl text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold"
+                >
+                  Salvar Alterações
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: ENTRADA RÁPIDA */}
       {modalEntradaRapida && (
         <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4">
@@ -1556,7 +1342,7 @@ export default function App() {
             <form onSubmit={handleEntradaRapida} className="space-y-4">
               <div>
                 <label className="block text-xs text-slate-400 mb-1">
-                  Material (SINAPI/SC)
+                  Material
                 </label>
                 <select
                   required
@@ -1567,7 +1353,7 @@ export default function App() {
                   <option value="">-- Escolha --</option>
                   {materiais.map((m) => (
                     <option key={m.id} value={m.id}>
-                      [{m.codigoSinapi || m.codigo}] {m.nome}
+                      {m.nome} (Saldo: {m.quantidade} {m.unidade})
                     </option>
                   ))}
                 </select>
@@ -1605,7 +1391,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 3: NOVO PEDIDO E ROMANEIO */}
+      {/* MODAL 4: NOVO PEDIDO E ROMANEIO (SEM VALORES FINANCEIROS) */}
       {modalNovoPedido && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full p-6 space-y-5 max-h-[90vh] flex flex-col">
@@ -1661,7 +1447,7 @@ export default function App() {
 
               <div className="border border-slate-800 rounded-xl overflow-hidden">
                 <div className="bg-slate-950 px-4 py-2.5 text-xs font-semibold uppercase text-slate-400 flex justify-between">
-                  <span>Materiais Disponíveis (SINAPI/SC)</span>
+                  <span>Materiais Disponíveis</span>
                   <span>Itens marcados: {itensSelecionados.length}</span>
                 </div>
                 <div className="max-h-72 overflow-y-auto divide-y divide-slate-800">
@@ -1691,12 +1477,7 @@ export default function App() {
                             <Square className="w-5 h-5 text-slate-500" />
                           )}
                           <div>
-                            <p className="font-medium text-white">
-                              <span className="font-mono text-xs text-amber-400 mr-2">
-                                [{mat.codigoSinapi || mat.codigo}]
-                              </span>
-                              {mat.nome}
-                            </p>
+                            <p className="font-medium text-white">{mat.nome}</p>
                             <p className="text-xs text-slate-400">
                               Saldo disponível: {saldo} {mat.unidade || "UN"}
                             </p>
@@ -1748,95 +1529,6 @@ export default function App() {
                 </div>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 4: GESTÃO E ATUALIZAÇÃO DA TABELA SINAPI/SC */}
-      {modalSinapi && (
-        <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div>
-                <h2 className="text-lg font-bold text-amber-400">
-                  Tabela Referência de Insumos SINAPI/SC
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Atualmente com {Object.keys(catalogoSinapi).length} insumos ativos para autopreenchimento
-                </p>
-              </div>
-              <button
-                onClick={() => setModalSinapi(false)}
-                className="text-slate-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">
-                  Mês/Ano de Referência SINAPI/SC
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ex: 10/2026"
-                  value={mesReferenciaSinapi}
-                  onChange={(e) => setMesReferenciaSinapi(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
-                />
-              </div>
-
-              {/* OPÇÃO 1: Importar CSV SINAPI/SC */}
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
-                <h3 className="text-sm font-semibold text-white">
-                  1. Carregar Planilha Completa de Insumos SINAPI/SC (.CSV)
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Abra a planilha de Insumos da Caixa (SC) no Excel, escolha <strong>Salvar Como &gt; CSV (separado por vírgulas / ponto e vírgula)</strong> e selecione abaixo. Todos os 5.000+ códigos ficarão salvos no sistema.
-                </p>
-                <label className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-semibold cursor-pointer transition mt-2">
-                  <Upload className="w-4 h-4" />
-                  Selecionar Arquivo CSV SINAPI/SC
-                  <input
-                    type="file"
-                    accept=".csv,.txt"
-                    onChange={handleImportarCSVSinapi}
-                    disabled={processandoSinapi}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-
-              {/* OPÇÃO 2: Reajuste Percentual Mensal SINAPI/SC */}
-              <form
-                onSubmit={handleReajustePercentualSinapi}
-                className="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3"
-              >
-                <h3 className="text-sm font-semibold text-white">
-                  2. Aplicar Variação Mensal SINAPI/SC (%)
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Reajusta linearmente o preço de todos os materiais cadastrados pelo índice mensal divulgado pelo IBGE/Caixa para Santa Catarina.
-                </p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Ex: 0,48 (para +0,48%)"
-                    value={percentualSinapi}
-                    onChange={(e) => setPercentualSinapi(e.target.value)}
-                    className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm"
-                  />
-                  <button
-                    type="submit"
-                    disabled={processandoSinapi}
-                    className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold"
-                  >
-                    Aplicar Índice
-                  </button>
-                </div>
-              </form>
-            </div>
           </div>
         </div>
       )}
