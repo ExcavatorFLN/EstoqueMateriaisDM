@@ -49,6 +49,8 @@ import {
   Clock,
   BarChart3,
   Download,
+  Database,
+  CheckCircle2,
 } from "lucide-react";
 
 // ============================================================================
@@ -69,15 +71,166 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 
-// E-mail principal que recebe os alertas de novos usuários e nasce como Master
 const EMAIL_ALERTA_MASTER = "rodrigo.smi@floripa.sc.gov.br";
 const EMAILS_MASTER_PADRAO = ["rodrigo.smi@floripa.sc.gov.br"];
 
-// Filtro que deixa o fundo do JPG transparente e o brasão/letras 100% brancos
 const estiloLogoBranca = {
   filter: "grayscale(100%) invert(100%) contrast(300%) brightness(1.15)",
   mixBlendMode: "screen",
 };
+
+// ============================================================================
+// 2. LISTA OFICIAL DE MATERIAIS DA DIRETORIA DE MANUTENÇÃO (147 ITENS CHUMBADOS)
+// ============================================================================
+const CATALOGO_PADRAO_DM = [
+  { codigo: "44812", nome: "TUBO CORRUGADO PEAD, PAREDE DUPLA, INTERNA LISA, JEI DN/DI 500 MM (DRENAGEM/ESGOTO)", unidade: "M", preco: 362.56 },
+  { codigo: "41785", nome: "TUBO CORRUGADO PEAD, PAREDE DUPLA, INTERNA LISA, JEI, DN/DI *1000* MM, PARA SANEAMENTO (DRENAGEM/ESGOTO)", unidade: "M", preco: 1343.62 },
+  { codigo: "41781", nome: "TUBO CORRUGADO PEAD, PAREDE DUPLA, INTERNA LISA, JEI, DN/DI *400* MM, PARA SANEAMENTO (DRENAGEM/ESGOTO)", unidade: "M", preco: 242.61 },
+  { codigo: "41783", nome: "TUBO CORRUGADO PEAD, PAREDE DUPLA, INTERNA LISA, JEI, DN/DI *800* MM, PARA SANEAMENTO (DRENAGEM/ESGOTO)", unidade: "M", preco: 872.21 },
+  { codigo: "41786", nome: "TUBO CORRUGADO PEAD, PAREDE DUPLA, INTERNA LISA, JEI, DN/DI 1200 MM, PARA SANEAMENTO (DRENAGEM/ESGOTO)", unidade: "M", preco: 1856.96 },
+  { codigo: "41779", nome: "TUBO CORRUGADO PEAD, PAREDE DUPLA, INTERNA LISA, JEI, DN/DI 250 MM, PARA SANEAMENTO (DRENAGEM/ESGOTO)", unidade: "M", preco: 95.55 },
+  { codigo: "41780", nome: "TUBO CORRUGADO PEAD, PAREDE DUPLA, INTERNA LISA, JEI, DN/DI 300 MM, PARA SANEAMENTO (DRENAGEM/ESGOTO)", unidade: "M", preco: 149.69 },
+  { codigo: "41782", nome: "TUBO CORRUGADO PEAD, PAREDE DUPLA, INTERNA LISA, JEI, DN/DI 600 MM, PARA SANEAMENTO (DRENAGEM/ESGOTO)", unidade: "M", preco: 536.24 },
+  { codigo: "1379", nome: "CIMENTO PORTLAND COMPOSTO CP II-32", unidade: "KG", preco: 0.86 },
+  { codigo: "13284", nome: "CIMENTO PORTLAND DE ALTO FORNO (AF) CP III-40", unidade: "KG", preco: 0.77 },
+  { codigo: "44528", nome: "CIMENTO PORTLAND ESTRUTURAL BRANCO CPB - 32 OU CPB - 40", unidade: "KG", preco: 4.58 },
+  { codigo: "34753", nome: "CIMENTO PORTLAND POZOLANICO CP IV-32", unidade: "KG", preco: 0.83 },
+  { codigo: "366", nome: "AREIA FINA - POSTO JAZIDA/FORNECEDOR (RETIRADO NA JAZIDA, SEM TRANSPORTE)", unidade: "M3", preco: 160.00 },
+  { codigo: "367", nome: "AREIA GROSSA - POSTO JAZIDA/FORNECEDOR (RETIRADO NA JAZIDA, SEM TRANSPORTE)", unidade: "M3", preco: 162.09 },
+  { codigo: "370", nome: "AREIA MEDIA - POSTO JAZIDA/FORNECEDOR (RETIRADO NA JAZIDA, SEM TRANSPORTE)", unidade: "M3", preco: 160.00 },
+  { codigo: "368", nome: "AREIA PARA ATERRO - POSTO JAZIDA/FORNECEDOR (RETIRADO NA JAZIDA, SEM TRANSPORTE)", unidade: "M3", preco: 80.00 },
+  { codigo: "4720", nome: "PEDRA BRITADA N. 0, OU PEDRISCO (4,8 A 9,5 MM) POSTO PEDREIRA/FORNECEDOR, SEM FRETE", unidade: "M3", preco: 129.20 },
+  { codigo: "4721", nome: "PEDRA BRITADA N. 1 (9,5 A 19 MM) POSTO PEDREIRA/FORNECEDOR, SEM FRETE", unidade: "M3", preco: 111.91 },
+  { codigo: "4718", nome: "PEDRA BRITADA N. 2 (19 A 38 MM) POSTO PEDREIRA/FORNECEDOR, SEM FRETE", unidade: "M3", preco: 112.50 },
+  { codigo: "4722", nome: "PEDRA BRITADA N. 3 (38 A 50 MM) POSTO PEDREIRA/FORNECEDOR, SEM FRETE", unidade: "M3", preco: 105.71 },
+  { codigo: "96393-A", nome: "BRITA GRADUADA SIMPLES. AF_09/2025", unidade: "M3", preco: 180.62 },
+  { codigo: "0001-IN", nome: "BICA CORRIDA", unidade: "M3", preco: 0.00 },
+  { codigo: "34556", nome: "BLOCO DE CONCRETO ESTRUTURAL 14 X 19 X 29 CM, FBK 10 MPA (NBR 6136)", unidade: "UN", preco: 5.58 },
+  { codigo: "37873", nome: "BLOCO DE CONCRETO ESTRUTURAL 14 X 19 X 29 CM, FBK 12 MPA (NBR 6136)", unidade: "UN", preco: 5.68 },
+  { codigo: "34564", nome: "BLOCO DE CONCRETO ESTRUTURAL 14 X 19 X 29 CM, FBK 14 MPA (NBR 6136)", unidade: "UN", preco: 5.95 },
+  { codigo: "34565", nome: "BLOCO DE CONCRETO ESTRUTURAL 14 X 19 X 29 CM, FBK 16 MPA (NBR 6136)", unidade: "UN", preco: 6.29 },
+  { codigo: "38590", nome: "BLOCO DE CONCRETO ESTRUTURAL 14 X 19 X 29 CM, FBK 4,5 MPA (NBR 6136)", unidade: "UN", preco: 4.65 },
+  { codigo: "34566", nome: "BLOCO DE CONCRETO ESTRUTURAL 14 X 19 X 29 CM, FBK 6 MPA (NBR 6136)", unidade: "UN", preco: 4.88 },
+  { codigo: "34567", nome: "BLOCO DE CONCRETO ESTRUTURAL 14 X 19 X 29 CM, FBK 8 MPA (NBR 6136)", unidade: "UN", preco: 5.17 },
+  { codigo: "38591", nome: "BLOCO DE CONCRETO ESTRUTURAL 14 X 19 X 34 CM, FBK 4,5 MPA (NBR 6136)", unidade: "UN", preco: 4.70 },
+  { codigo: "34568", nome: "BLOCO DE CONCRETO ESTRUTURAL 14 X 19 X 39 CM, FBK 10 MPA (NBR 6136)", unidade: "UN", preco: 6.12 },
+  { codigo: "34569", nome: "BLOCO DE CONCRETO ESTRUTURAL 14 X 19 X 39 CM, FBK 12 MPA (NBR 6136)", unidade: "UN", preco: 6.29 },
+  { codigo: "34570", nome: "BLOCO DE CONCRETO ESTRUTURAL 14 X 19 X 39 CM, FBK 14 MPA (NBR 6136)", unidade: "UN", preco: 6.83 },
+  { codigo: "25070", nome: "BLOCO DE CONCRETO ESTRUTURAL 14 X 19 X 39 CM, FBK 4,5 MPA (NBR 6136)", unidade: "UN", preco: 5.14 },
+  { codigo: "34571", nome: "BLOCO DE CONCRETO ESTRUTURAL 14 X 19 X 39 CM, FBK 6 MPA (NBR 6136)", unidade: "UN", preco: 5.19 },
+  { codigo: "34573", nome: "BLOCO DE CONCRETO ESTRUTURAL 14 X 19 X 39 CM, FBK 8 MPA (NBR 6136)", unidade: "UN", preco: 5.46 },
+  { codigo: "37107", nome: "BLOCO DE CONCRETO ESTRUTURAL 14 X 19 X 39, FCK 16 MPA (NBR 6136)", unidade: "UN", preco: 7.21 },
+  { codigo: "34576", nome: "BLOCO DE CONCRETO ESTRUTURAL 19 X 19 X 39 CM, FBK 10 MPA (NBR 6136)", unidade: "UN", preco: 7.95 },
+  { codigo: "34577", nome: "BLOCO DE CONCRETO ESTRUTURAL 19 X 19 X 39 CM, FBK 12 MPA (NBR 6136)", unidade: "UN", preco: 8.30 },
+  { codigo: "34578", nome: "BLOCO DE CONCRETO ESTRUTURAL 19 X 19 X 39 CM, FBK 14 MPA (NBR 6136)", unidade: "UN", preco: 9.00 },
+  { codigo: "34579", nome: "BLOCO DE CONCRETO ESTRUTURAL 19 X 19 X 39 CM, FBK 16 MPA (NBR 6136)", unidade: "UN", preco: 9.60 },
+  { codigo: "25067", nome: "BLOCO DE CONCRETO ESTRUTURAL 19 X 19 X 39 CM, FBK 4,5 MPA (NBR 6136)", unidade: "UN", preco: 6.42 },
+  { codigo: "34580", nome: "BLOCO DE CONCRETO ESTRUTURAL 19 X 19 X 39 CM, FBK 8 MPA (NBR 6136)", unidade: "UN", preco: 7.17 },
+  { codigo: "25071", nome: "BLOCO DE CONCRETO ESTRUTURAL 9 X 19 X 39 CM, FBK 4,5 MPA (NBR 6136)", unidade: "UN", preco: 3.57 },
+  { codigo: "7270", nome: "BLOCO CERAMICO / TIJOLO VAZADO PARA ALVENARIA DE VEDACAO, 4 FUROS NA HORIZONTAL DE 9 X 9 X 19 CM (L X A X C)", unidade: "UN", preco: 1.02 },
+  { codigo: "44460", nome: "BLOCO CERAMICO / TIJOLO VAZADO PARA ALVENARIA DE VEDACAO, 6 FUROS NA HORIZONTAL DE 11,5 X 19 X 29 CM (L X A X C)", unidade: "UN", preco: 1.71 },
+  { codigo: "44461", nome: "BLOCO CERAMICO / TIJOLO VAZADO PARA ALVENARIA DE VEDACAO, 6 FUROS NA HORIZONTAL DE 11,5 X 19 X 39 CM (L X A X C)", unidade: "UN", preco: 2.33 },
+  { codigo: "7267", nome: "BLOCO CERAMICO / TIJOLO VAZADO PARA ALVENARIA DE VEDACAO, 6 FUROS NA HORIZONTAL DE 9 X 14 X 19 CM (L X A X C)", unidade: "UN", preco: 0.86 },
+  { codigo: "44458", nome: "BLOCO CERAMICO / TIJOLO VAZADO PARA ALVENARIA DE VEDACAO, 6 FUROS NA HORIZONTAL DE 9 X 14 X 24 CM (L X A X C)", unidade: "UN", preco: 1.04 },
+  { codigo: "44457", nome: "BLOCO CERAMICO / TIJOLO VAZADO PARA ALVENARIA DE VEDACAO, 6 FUROS NA HORIZONTAL DE 9 X 19 X 39 CM (L X A X C)", unidade: "UN", preco: 2.02 },
+  { codigo: "7271", nome: "BLOCO CERAMICO / TIJOLO VAZADO PARA ALVENARIA DE VEDACAO, 8 FUROS NA HORIZONTAL DE 9 X 19 X 19 CM (L X A X C)", unidade: "UN", preco: 1.09 },
+  { codigo: "7268", nome: "BLOCO CERAMICO / TIJOLO VAZADO PARA ALVENARIA DE VEDACAO, 8 FUROS NA HORIZONTAL DE 9 X 19 X 29 CM (L X A X C)", unidade: "UN", preco: 1.70 },
+  { codigo: "44459", nome: "BLOCO CERAMICO / TIJOLO VAZADO PARA ALVENARIA DE VEDACAO, 9 FUROS NA HORIZONTAL DE 11,5 X 14 X 24 CM (L X A X C)", unidade: "UN", preco: 1.10 },
+  { codigo: "44462", nome: "BLOCO CERAMICO / TIJOLO VAZADO PARA ALVENARIA DE VEDACAO, 9 FUROS NA HORIZONTAL DE 14 X 19 X 29 CM (L X A X C)", unidade: "UN", preco: 1.94 },
+  { codigo: "44463", nome: "BLOCO CERAMICO / TIJOLO VAZADO PARA ALVENARIA DE VEDACAO, 9 FUROS NA HORIZONTAL DE 14 X 19 X 39 CM (L X A X C)", unidade: "UN", preco: 2.50 },
+  { codigo: "44464", nome: "BLOCO CERAMICO / TIJOLO VAZADO PARA ALVENARIA DE VEDACAO, 9 FUROS NA HORIZONTAL DE 19 X 19 X 29 CM (L X A X C)", unidade: "UN", preco: 2.59 },
+  { codigo: "44465", nome: "BLOCO CERAMICO / TIJOLO VAZADO PARA ALVENARIA DE VEDACAO, 9 FUROS NA HORIZONTAL DE 19 X 19 X 39 CM (L X A X C)", unidade: "UN", preco: 3.56 },
+  { codigo: "38783", nome: "BLOCO CERAMICO / TIJOLO VAZADO PARA ALVENARIA DE VEDACAO, FUROS NA HORIZONTAL DE 11,5 X 19 X 19 CM (L X A X C)", unidade: "UN", preco: 1.24 },
+  { codigo: "44466", nome: "BLOCO CERAMICO / TIJOLO VAZADO PARA ALVENARIA DE VEDACAO, FUROS NA VERTICAL DE 11,5 X 19 X 29 CM (L X A X C)", unidade: "UN", preco: 2.53 },
+  { codigo: "44467", nome: "BLOCO CERAMICO / TIJOLO VAZADO PARA ALVENARIA DE VEDACAO, FUROS NA VERTICAL DE 11,5 X 19 X 39 CM (L X A X C)", unidade: "UN", preco: 3.04 },
+  { codigo: "44468", nome: "BLOCO CERAMICO / TIJOLO VAZADO PARA ALVENARIA DE VEDACAO, FUROS NA VERTICAL DE 14 X 19 X 29 CM (L X A X C)", unidade: "UN", preco: 2.64 },
+  { codigo: "37593", nome: "BLOCO CERAMICO / TIJOLO VAZADO PARA ALVENARIA DE VEDACAO, FUROS NA VERTICAL DE 14 X 19 X 39 CM (L X A X C)", unidade: "UN", preco: 3.40 },
+  { codigo: "37594", nome: "BLOCO CERAMICO / TIJOLO VAZADO PARA ALVENARIA DE VEDACAO, FUROS NA VERTICAL DE 19 X 19 X 39 CM (L X A X C)", unidade: "UN", preco: 4.04 },
+  { codigo: "37592", nome: "BLOCO CERAMICO / TIJOLO VAZADO PARA ALVENARIA DE VEDACAO, FUROS NA VERTICAL DE 9 X 19 X 39 CM (L X A X C)", unidade: "UN", preco: 2.69 },
+  { codigo: "7258", nome: "TIJOLO CERAMICO MACICO COMUM DE *5 X 10 X 20* CM (L X A X C)", unidade: "UN", preco: 0.74 },
+  { codigo: "1379", nome: "CIMENTO PORTLAND COMPOSTO CP II-32 SACA 50KG", unidade: "UN", preco: 43.00 },
+  { codigo: "34753", nome: "CIMENTO PORTLAND POZOLANICO CP IV-32 SACA 50KG", unidade: "UN", preco: 41.50 },
+  { codigo: "13284", nome: "CIMENTO PORTLAND DE ALTO FORNO (AF) CP III-40 SACA 50KG", unidade: "UN", preco: 38.50 },
+  { codigo: "40524", nome: "BLOQUETE/PISO INTERTRAVADO DE CONCRETO - MODELO ONDA/16 FACES/RETANGULAR/TIJOLINHO/PAVER/HOLANDES/PARALELEPIPEDO, *20 X 10* CM, E = 10 CM, RESISTENCIA DE 35 MPA, COR NATURAL", unidade: "M2", preco: 66.82 },
+  { codigo: "40529", nome: "BLOQUETE/PISO INTERTRAVADO DE CONCRETO - MODELO ONDA/16 FACES/RETANGULAR/TIJOLINHO/PAVER/HOLANDES/PARALELEPIPEDO, *20 X 10* CM, E = 10 CM, RESISTENCIA DE 50 MPA, COR NATURAL", unidade: "M2", preco: 105.94 },
+  { codigo: "36156", nome: "BLOQUETE/PISO INTERTRAVADO DE CONCRETO - MODELO ONDA/16 FACES/RETANGULAR/TIJOLINHO/PAVER/HOLANDES/PARALELEPIPEDO, *20 X 10* CM, E = 6 CM, RESISTENCIA DE 35 MPA, COLORIDO", unidade: "M2", preco: 63.30 },
+  { codigo: "36155", nome: "BLOQUETE/PISO INTERTRAVADO DE CONCRETO - MODELO ONDA/16 FACES/RETANGULAR/TIJOLINHO/PAVER/HOLANDES/PARALELEPIPEDO, *20 X 10* CM, E = 6 CM, RESISTENCIA DE 35 MPA, COR NATURAL", unidade: "M2", preco: 50.11 },
+  { codigo: "36154", nome: "BLOQUETE/PISO INTERTRAVADO DE CONCRETO - MODELO ONDA/16 FACES/RETANGULAR/TIJOLINHO/PAVER/HOLANDES/PARALELEPIPEDO, *20 X 10* CM, E = 8 CM, RESISTENCIA DE 35 MPA, COLORIDO", unidade: "M2", preco: 75.61 },
+  { codigo: "36170", nome: "BLOQUETE/PISO INTERTRAVADO DE CONCRETO - MODELO ONDA/16 FACES/RETANGULAR/TIJOLINHO/PAVER/HOLANDES/PARALELEPIPEDO, *20 X 10* CM, E = 8 CM, RESISTENCIA DE 35 MPA, COR NATURAL", unidade: "M2", preco: 57.15 },
+  { codigo: "695", nome: "BLOQUETE/PISO INTERTRAVADO DE CONCRETO - MODELO RAQUETE, *22 X 13,5* CM, E = 6 CM, RESISTENCIA DE 35 MPA, COR NATURAL", unidade: "M2", preco: 63.52 },
+  { codigo: "679", nome: "BLOQUETE/PISO INTERTRAVADO DE CONCRETO - MODELO SEXTAVADO / HEXAGONAL, *25 X 25* CM, E = 10 CM, RESISTENCIA DE 35 MPA, COR NATURAL", unidade: "M2", preco: 90.64 },
+  { codigo: "711", nome: "BLOQUETE/PISO INTERTRAVADO DE CONCRETO - MODELO SEXTAVADO / HEXAGONAL, *25 X 25* CM, E = 6 CM, RESISTENCIA DE 35 MPA, COR NATURAL", unidade: "M2", preco: 57.15 },
+  { codigo: "712", nome: "BLOQUETE/PISO INTERTRAVADO DE CONCRETO - MODELO SEXTAVADO / HEXAGONAL, *25 X 25* CM, E = 8 CM, RESISTENCIA DE 35 MPA, COR NATURAL", unidade: "M2", preco: 68.58 },
+  { codigo: "4385", nome: "PARALELEPIPEDO GRANITICO OU BASALTICO, PARA PAVIMENTACAO, SEM FRETE (VARIACAO REGIONAL DE PECAS POR M2)", unidade: "MIL", preco: 3066.99 },
+  { codigo: "7753", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-1, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 1000 MM", unidade: "M", preco: 522.29 },
+  { codigo: "13256", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-1, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 1100 MM", unidade: "M", preco: 731.65 },
+  { codigo: "7757", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-1, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 1200 MM", unidade: "M", preco: 780.06 },
+  { codigo: "7758", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-1, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 1500 MM", unidade: "M", preco: 1130.13 },
+  { codigo: "7759", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-1, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 2000 MM", unidade: "M", preco: 3131.59 },
+  { codigo: "40334", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-1, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 300 MM", unidade: "M", preco: 122.69 },
+  { codigo: "7745", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-1, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 400 MM", unidade: "M", preco: 138.45 },
+  { codigo: "7742", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-1, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 700 MM", unidade: "M", preco: 365.15 },
+  { codigo: "7750", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-1, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 800 MM", unidade: "M", preco: 445.74 },
+  { codigo: "7756", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-1, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 900 MM", unidade: "M", preco: 512.16 },
+  { codigo: "7725", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-1, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE = 600 MM", unidade: "M", preco: 267.90 },
+  { codigo: "7765", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-2, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 1000 MM", unidade: "M", preco: 574.07 },
+  { codigo: "12569", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-2, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 1100 MM", unidade: "M", preco: 792.44 },
+  { codigo: "7766", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-2, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 1200 MM", unidade: "M", preco: 841.97 },
+  { codigo: "7767", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-2, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 1500 MM", unidade: "M", preco: 1208.92 },
+  { codigo: "7727", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-2, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 2000 MM", unidade: "M", preco: 3511.96 },
+  { codigo: "7760", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-2, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 300 MM", unidade: "M", preco: 139.57 },
+  { codigo: "7761", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-2, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 400 MM", unidade: "M", preco: 146.33 },
+  { codigo: "7752", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-2, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 500 MM", unidade: "M", preco: 177.84 },
+  { codigo: "7762", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-2, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 600 MM", unidade: "M", preco: 232.44 },
+  { codigo: "7722", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-2, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 700 MM", unidade: "M", preco: 355.69 },
+  { codigo: "7763", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-2, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 800 MM", unidade: "M", preco: 433.36 },
+  { codigo: "7764", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-2, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 900 MM", unidade: "M", preco: 517.78 },
+  { codigo: "12572", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-3, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 1000 MM", unidade: "M", preco: 731.65 },
+  { codigo: "12573", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-3, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 1100 MM", unidade: "M", preco: 962.41 },
+  { codigo: "12574", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-3, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 1200 MM", unidade: "M", preco: 1163.67 },
+  { codigo: "12575", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-3, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 1500 MM", unidade: "M", preco: 1767.23 },
+  { codigo: "12576", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-3, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 400 MM", unidade: "M", preco: 213.86 },
+  { codigo: "12577", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-3, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 500 MM", unidade: "M", preco: 288.16 },
+  { codigo: "12578", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-3, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 600 MM", unidade: "M", preco: 348.94 },
+  { codigo: "12579", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-3, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 700 MM", unidade: "M", preco: 601.08 },
+  { codigo: "12580", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-3, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 800 MM", unidade: "M", preco: 626.30 },
+  { codigo: "12581", nome: "TUBO DE CONCRETO ARMADO PARA AGUAS PLUVIAIS, CLASSE PA-3, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 900 MM", unidade: "M", preco: 670.87 },
+  { codigo: "37449", nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS1, COM ENCAIXE MACHO E FEMEA, DIAMETRO NOMINAL DE 200 MM", unidade: "M", preco: 27.62 },
+  { codigo: "37450", nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS1, COM ENCAIXE MACHO E FEMEA, DIAMETRO NOMINAL DE 300 MM", unidade: "M", preco: 38.67 },
+  { codigo: "37451", nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS1, COM ENCAIXE MACHO E FEMEA, DIAMETRO NOMINAL DE 400 MM", unidade: "M", preco: 53.99 },
+  { codigo: "37452", nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS1, COM ENCAIXE MACHO E FEMEA, DIAMETRO NOMINAL DE 500 MM", unidade: "M", preco: 78.47 },
+  { codigo: "37453", nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS1, COM ENCAIXE MACHO E FEMEA, DIAMETRO NOMINAL DE 600 MM", unidade: "M", preco: 90.37 },
+  { codigo: "7778", nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS1, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 200 MM", unidade: "M", preco: 33.90 },
+  { codigo: "7796", nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS1, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 300 MM", unidade: "M", preco: 46.46 },
+  { codigo: "7781", nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS1, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 400 MM", unidade: "M", preco: 54.90 },
+  { codigo: "7795", nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS1, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 500 MM", unidade: "M", preco: 81.71 },
+  { codigo: "7791", nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS1, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 600 MM", unidade: "M", preco: 97.81 },
+  { codigo: "7783", nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS2, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 200 MM", unidade: "M", preco: 34.66 },
+  { codigo: "7790", nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS2, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 300 MM", unidade: "M", preco: 54.62 },
+  { codigo: "7785", nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS2, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 400 MM", unidade: "M", preco: 60.27 },
+  { codigo: "7792", nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS2, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 500 MM", unidade: "M", preco: 85.48 },
+  { codigo: "7793", nome: "TUBO DE CONCRETO SIMPLES PARA AGUAS PLUVIAIS, CLASSE PS2, COM ENCAIXE PONTA E BOLSA, DIAMETRO NOMINAL DE 600 MM", unidade: "M", preco: 100.95 },
+  { codigo: "41682", nome: "MEIO-FIO OU GUIA DE CONCRETO PRE MOLDADO, COMP 1 M, *30 X 10/12* CM (H X L1/L2)", unidade: "UN", preco: 31.50 },
+  { codigo: "41683", nome: "MEIO-FIO OU GUIA DE CONCRETO PRE MOLDADO, COMP 80 CM, *30 X 10/10* (H X L1/L2)", unidade: "UN", preco: 23.18 },
+  { codigo: "41680", nome: "MEIO-FIO OU GUIA DE CONCRETO PRE-MOLDADO, COMP *39* CM, *19 X 6,5/6,5* CM (H X L1/L2)", unidade: "UN", preco: 12.48 },
+  { codigo: "41679", nome: "MEIO-FIO OU GUIA DE CONCRETO PRE-MOLDADO, COMP 1 M, *20 X 12/15* CM (H X L1/L2)", unidade: "UN", preco: 28.53 },
+  { codigo: "41681", nome: "MEIO-FIO OU GUIA DE CONCRETO PRE-MOLDADO, COMP 80 CM, *25 X 08/08* CM (H X L1/L2)", unidade: "UN", preco: 19.52 },
+  { codigo: "43386", nome: "MEIO-FIO OU GUIA DE CONCRETO PRE-MOLDADO, TIPO CHAPEU PARA BOCA DE LOBO, DIMENSOES *1,20* X 0,15 X 0,30 M", unidade: "UN", preco: 44.57 },
+  { codigo: "4059", nome: "MEIO-FIO OU GUIA DE CONCRETO, PRE-MOLDADO, COMP 1 M, *30 X 12/15* CM (H X L1/L2)", unidade: "M", preco: 31.50 },
+  { codigo: "4062", nome: "MEIO-FIO OU GUIA DE CONCRETO, PRE-MOLDADO, COMP 1 M, *30 X 15* CM (H X L)", unidade: "UN", preco: 31.50 },
+  { codigo: "4061", nome: "MEIO-FIO OU GUIA DE CONCRETO, PRE-MOLDADO, COMP 80 CM, *45 X 12/18* CM (H X L1/L2)", unidade: "UN", preco: 39.22 },
+  { codigo: "4013", nome: "GEOTEXTIL NAO TECIDO AGULHADO DE FILAMENTOS CONTINUOS 100% POLIESTER, RESITENCIA A TRACAO = 09 KN/M", unidade: "M2", preco: 7.12 },
+  { codigo: "4011", nome: "GEOTEXTIL NAO TECIDO AGULHADO DE FILAMENTOS CONTINUOS 100% POLIESTER, RESITENCIA A TRACAO = 10 KN/M", unidade: "M2", preco: 7.96 },
+  { codigo: "4021", nome: "GEOTEXTIL NAO TECIDO AGULHADO DE FILAMENTOS CONTINUOS 100% POLIESTER, RESITENCIA A TRACAO = 14 KN/M", unidade: "M2", preco: 9.92 },
+  { codigo: "4019", nome: "GEOTEXTIL NAO TECIDO AGULHADO DE FILAMENTOS CONTINUOS 100% POLIESTER, RESITENCIA A TRACAO = 16 KN/M", unidade: "M2", preco: 11.91 },
+  { codigo: "4012", nome: "GEOTEXTIL NAO TECIDO AGULHADO DE FILAMENTOS CONTINUOS 100% POLIESTER, RESITENCIA A TRACAO = 21 KN/M", unidade: "M2", preco: 15.97 },
+  { codigo: "4020", nome: "GEOTEXTIL NAO TECIDO AGULHADO DE FILAMENTOS CONTINUOS 100% POLIESTER, RESITENCIA A TRACAO = 26 KN/M", unidade: "M2", preco: 19.99 },
+  { codigo: "4018", nome: "GEOTEXTIL NAO TECIDO AGULHADO DE FILAMENTOS CONTINUOS 100% POLIESTER, RESITENCIA A TRACAO = 31 KN/M", unidade: "M2", preco: 23.95 },
+  { codigo: "11161", nome: "CAL HIDRATADA PARA PINTURA SACA 8KG", unidade: "UN", preco: 12.80 },
+  { codigo: "34", nome: "ACO CA-50, 10,0 MM, VERGALHAO", unidade: "KG", preco: 7.34 },
+  { codigo: "32", nome: "ACO CA-50, 6,3 MM, VERGALHAO", unidade: "KG", preco: 7.74 },
+  { codigo: "33", nome: "ACO CA-50, 8,0 MM, VERGALHAO", unidade: "KG", preco: 7.79 },
+];
 
 // Lista oficial de Requerentes / Destinos
 const LISTA_REQUERENTES = [
@@ -105,7 +258,7 @@ const LISTA_REQUERENTES = [
 export default function App() {
   // Estados de Autenticação e Perfil de Acesso
   const [user, setUser] = useState(null);
-  const [perfilUsuario, setPerfilUsuario] = useState(null); // { role: 'master'|'gestor'|'operador', status: 'aprovado'|'pendente'|'bloqueado' }
+  const [perfilUsuario, setPerfilUsuario] = useState(null);
   const [verificandoAuth, setVerificandoAuth] = useState(true);
   const [lembrarDeMim, setLembrarDeMim] = useState(true);
 
@@ -114,11 +267,12 @@ export default function App() {
   const [romaneios, setRomaneios] = useState([]);
   const [listaUsuarios, setListaUsuarios] = useState([]);
   const [carregando, setCarregando] = useState(true);
-  const [abaAtiva, setAbaAtiva] = useState("estoque"); // "estoque" | "romaneios" | "relatorios" | "usuarios"
+  const [abaAtiva, setAbaAtiva] = useState("estoque");
   const [busca, setBusca] = useState("");
   const [filtroRequerenteRelatorio, setFiltroRequerenteRelatorio] = useState("TODOS");
   const [processandoPedido, setProcessandoPedido] = useState(false);
   const [estornandoId, setEstornandoId] = useState(null);
+  const [importandoCatalogo, setImportandoCatalogo] = useState(false);
 
   // Estados dos Modais
   const [modalNovoMaterial, setModalNovoMaterial] = useState(false);
@@ -126,16 +280,16 @@ export default function App() {
   const [modalEntradaRapida, setModalEntradaRapida] = useState(false);
   const [modalNovoPedido, setModalNovoPedido] = useState(false);
 
-  // Estado do formulário de Novo Material
+  // Estado do formulário de Novo Material (Apenas Código, Descrição, Unidade, Preço, Estoque Mínimo e Saldo Inicial)
   const [novoMaterial, setNovoMaterial] = useState({
     codigo: "",
     nome: "",
-    categoria: "Infraestrutura / Drenagem",
     unidade: "UN",
-    quantidade: "",
-    estoqueMinimo: "",
     preco: "",
+    estoqueMinimo: "",
+    quantidade: "",
   });
+  const [itemCatalogoEncontrado, setItemCatalogoEncontrado] = useState(false);
 
   // Estado de Edição de Material (Com causa obrigatória)
   const [materialEditando, setMaterialEditando] = useState(null);
@@ -158,9 +312,7 @@ export default function App() {
   const isGestor = perfilUsuario?.role === "gestor" && perfilUsuario?.status === "aprovado";
   const isOperador = perfilUsuario?.role === "operador" && perfilUsuario?.status === "aprovado";
 
-  // Quem pode alimentar o sistema (Novo Material, Entrada, Ajuste, Pedido, Cancelamento)
   const podeOperar = isMaster || isOperador;
-  // Quem pode visualizar valores financeiros globais e emitir relatórios de custos
   const podeVerValores = isMaster || isGestor;
 
   // ==========================================================================
@@ -189,7 +341,7 @@ export default function App() {
   };
 
   // ==========================================================================
-  // 2. MONITORAMENTO DE AUTENTICAÇÃO E PERFIL DO USUÁRIO
+  // MONITORAMENTO DE AUTENTICAÇÃO E PERFIL DO USUÁRIO
   // ==========================================================================
   useEffect(() => {
     let unsubscribePerfil = null;
@@ -211,7 +363,6 @@ export default function App() {
         const snap = await getDoc(userDocRef);
 
         if (!snap.exists()) {
-          // Primeiro login deste usuário no sistema!
           const novoCadastro = {
             uid: usuarioAtual.uid,
             nome: usuarioAtual.displayName || "Usuário",
@@ -229,7 +380,6 @@ export default function App() {
             dispararAlertaEmailNovoUsuario(usuarioAtual);
           }
         } else {
-          // Atualiza o último acesso (e garante que o e-mail master padrão nunca fique bloqueado)
           const dadosAtuais = snap.data();
           const updateData = { ultimoAcesso: serverTimestamp() };
           if (ehMasterPadrao && (dadosAtuais.role !== "master" || dadosAtuais.status !== "aprovado")) {
@@ -239,7 +389,6 @@ export default function App() {
           await updateDoc(userDocRef, updateData);
         }
 
-        // Escuta mudanças no perfil em tempo real (se o Master aprovar, a tela libera na hora)
         unsubscribePerfil = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
             setPerfilUsuario({ id: docSnap.id, ...docSnap.data() });
@@ -259,7 +408,7 @@ export default function App() {
   }, []);
 
   // ==========================================================================
-  // 3. SINCRONIZAÇÃO DE MATERIAIS, ROMANEIOS E LISTA DE USUÁRIOS
+  // SINCRONIZAÇÃO DE MATERIAIS, ROMANEIOS E LISTA DE USUÁRIOS
   // ==========================================================================
   useEffect(() => {
     if (!user || perfilUsuario?.status !== "aprovado") return;
@@ -320,7 +469,115 @@ export default function App() {
   }, [user, perfilUsuario?.status, perfilUsuario?.role]);
 
   // ==========================================================================
-  // 4. FUNÇÕES DE LOGIN, LOGOUT E GESTÃO DE USUÁRIOS (MASTER)
+  // AUTOPREENCHIMENTO PELO CATÁLOGO CHUMBADO DA DIRETORIA (147 MATERIAIS)
+  // ==========================================================================
+  const handleChangeCodigoMaterial = (valorDigitado) => {
+    const limpo = valorDigitado.trim().toUpperCase();
+    const encontradosExatos = CATALOGO_PADRAO_DM.filter(
+      (item) => item.codigo.toUpperCase() === limpo
+    );
+
+    if (encontradosExatos.length === 1) {
+      const item = encontradosExatos[0];
+      setItemCatalogoEncontrado(true);
+      setNovoMaterial((prev) => ({
+        ...prev,
+        codigo: item.codigo,
+        nome: item.nome,
+        unidade: item.unidade,
+        preco: String(item.preco),
+      }));
+    } else {
+      setItemCatalogoEncontrado(false);
+      setNovoMaterial((prev) => ({
+        ...prev,
+        codigo: valorDigitado,
+      }));
+    }
+  };
+
+  const selecionarItemDoCatalogo = (item) => {
+    setItemCatalogoEncontrado(true);
+    setNovoMaterial((prev) => ({
+      ...prev,
+      codigo: item.codigo,
+      nome: item.nome,
+      unidade: item.unidade,
+      preco: String(item.preco),
+    }));
+  };
+
+  const sugestoesCatalogoDM = useMemo(() => {
+    const termoCod = (novoMaterial.codigo || "").trim().toLowerCase();
+    const termoNome = (novoMaterial.nome || "").trim().toLowerCase();
+    const termoBusca = termoCod || termoNome;
+
+    if (!termoBusca || itemCatalogoEncontrado) return [];
+
+    return CATALOGO_PADRAO_DM.filter(
+      (item) =>
+        item.codigo.toLowerCase().includes(termoBusca) ||
+        item.nome.toLowerCase().includes(termoBusca)
+    ).slice(0, 8);
+  }, [novoMaterial.codigo, novoMaterial.nome, itemCatalogoEncontrado]);
+
+  // Importar em lote todos os 147 materiais chumbados para o Firestore (evitando duplicados)
+  const handleImportarCatalogoPadrao = async () => {
+    if (!podeOperar) return;
+    if (
+      !window.confirm(
+        `Deseja incluir na tabela de estoque os materiais da lista padrão da Diretoria (${CATALOGO_PADRAO_DM.length} itens)?\n\nItens já cadastrados com mesma descrição e unidade não serão duplicados.`
+      )
+    ) {
+      return;
+    }
+
+    setImportandoCatalogo(true);
+    try {
+      const batch = writeBatch(db);
+      let adicionados = 0;
+
+      for (const itemPadrao of CATALOGO_PADRAO_DM) {
+        const jaExiste = materiais.some(
+          (m) =>
+            (m.codigo === itemPadrao.codigo && m.unidade === itemPadrao.unidade) ||
+            (m.nome === itemPadrao.nome && m.unidade === itemPadrao.unidade)
+        );
+
+        if (!jaExiste) {
+          const ref = doc(collection(db, "materiais"));
+          batch.set(ref, {
+            codigo: itemPadrao.codigo,
+            nome: itemPadrao.nome,
+            unidade: itemPadrao.unidade,
+            preco: Number(itemPadrao.preco || 0),
+            estoqueMinimo: 0,
+            quantidade: 0,
+            criadoPor: user.email,
+            criadoPorNome: user.displayName || "Operador",
+            ultimaCausa: "Carga do catálogo padrão DM",
+            criadoEm: serverTimestamp(),
+          });
+          adicionados++;
+        }
+      }
+
+      if (adicionados > 0) {
+        await batch.commit();
+        alert(`${adicionados} materiais da lista padrão foram incluídos no estoque!`);
+      } else {
+        alert("Todos os 147 materiais da lista padrão já estão cadastrados no estoque.");
+      }
+    } catch (erro) {
+      console.error("Erro ao importar catálogo padrão:", erro);
+      alert("Erro ao importar lista padrão: " + erro.message);
+    } finally {
+      setImportandoCatalogo(false);
+    }
+  };
+
+  // ==========================================================================
+  // FUNÇÕES DE LOGIN, LOGOUT E GESTÃO DE USUÁRIOS
   // ==========================================================================
   const handleLoginGoogle = async () => {
     try {
@@ -360,7 +617,7 @@ export default function App() {
   };
 
   // ==========================================================================
-  // 5. INDICADORES DO DASHBOARD E RELATÓRIOS
+  // INDICADORES DO DASHBOARD E RELATÓRIOS
   // ==========================================================================
   const indicadores = useMemo(() => {
     const totalItens = materiais.length;
@@ -393,8 +650,7 @@ export default function App() {
     return materiais.filter(
       (m) =>
         (m.nome || "").toLowerCase().includes(termo) ||
-        (m.codigo || m.codigoSinapi || "").toLowerCase().includes(termo) ||
-        (m.categoria || "").toLowerCase().includes(termo)
+        (m.codigo || "").toLowerCase().includes(termo)
     );
   }, [materiais, busca]);
 
@@ -439,23 +695,22 @@ export default function App() {
   };
 
   // ==========================================================================
-  // 6. OPERAÇÕES DE ESTOQUE (SEMPRE REGISTRANDO O RESPONSÁVEL E A CAUSA)
+  // OPERAÇÕES DE ESTOQUE (APENAS CÓDIGO, DESCRIÇÃO, UNIDADE, PREÇO, ESTOQUE MÍNIMO E SALDO)
   // ==========================================================================
   const handleCadastrarMaterial = async (e) => {
     e.preventDefault();
     if (!podeOperar) return alert("Seu perfil não possui permissão para cadastrar materiais.");
-    if (!novoMaterial.nome.trim()) return alert("Informe o nome do material.");
+    if (!novoMaterial.nome.trim()) return alert("Informe a descrição do material.");
 
     try {
       await addDoc(collection(db, "materiais"), {
         codigo:
           novoMaterial.codigo.trim() || `MAT-${String(Date.now()).slice(-4)}`,
         nome: novoMaterial.nome.trim(),
-        categoria: novoMaterial.categoria,
         unidade: novoMaterial.unidade.trim() || "UN",
-        quantidade: Number(novoMaterial.quantidade || 0),
-        estoqueMinimo: Number(novoMaterial.estoqueMinimo || 0),
         preco: Number(String(novoMaterial.preco).replace(",", ".") || 0),
+        estoqueMinimo: Number(novoMaterial.estoqueMinimo || 0),
+        quantidade: Number(novoMaterial.quantidade || 0),
         criadoPor: user.email,
         criadoPorNome: user.displayName || "Operador",
         ultimaCausa: "Cadastro inicial de material",
@@ -465,12 +720,12 @@ export default function App() {
       setNovoMaterial({
         codigo: "",
         nome: "",
-        categoria: "Infraestrutura / Drenagem",
         unidade: "UN",
-        quantidade: "",
-        estoqueMinimo: "",
         preco: "",
+        estoqueMinimo: "",
+        quantidade: "",
       });
+      setItemCatalogoEncontrado(false);
       setModalNovoMaterial(false);
     } catch (erro) {
       console.error("Erro ao cadastrar material:", erro);
@@ -482,13 +737,12 @@ export default function App() {
     if (!podeOperar) return;
     setMaterialEditando({
       id: mat.id,
-      codigo: mat.codigo || mat.codigoSinapi || "",
+      codigo: mat.codigo || "",
       nome: mat.nome || "",
-      categoria: mat.categoria || "Infraestrutura / Drenagem",
       unidade: mat.unidade || "UN",
-      quantidade: Number(mat.quantidade || 0),
-      estoqueMinimo: Number(mat.estoqueMinimo || 0),
       preco: Number(mat.preco || 0),
+      estoqueMinimo: Number(mat.estoqueMinimo || 0),
+      quantidade: Number(mat.quantidade || 0),
     });
     setCausaEdicao("");
     setModalEditarMaterial(true);
@@ -506,11 +760,10 @@ export default function App() {
       await updateDoc(doc(db, "materiais", String(materialEditando.id)), {
         codigo: materialEditando.codigo.trim() || "-",
         nome: materialEditando.nome.trim(),
-        categoria: materialEditando.categoria,
         unidade: materialEditando.unidade.trim() || "UN",
-        quantidade: Number(materialEditando.quantidade || 0),
-        estoqueMinimo: Number(materialEditando.estoqueMinimo || 0),
         preco: Number(String(materialEditando.preco).replace(",", ".") || 0),
+        estoqueMinimo: Number(materialEditando.estoqueMinimo || 0),
+        quantidade: Number(materialEditando.quantidade || 0),
         atualizadoPor: user.email,
         atualizadoPorNome: user.displayName || "Operador",
         ultimaCausa: causaEdicao.trim(),
@@ -572,7 +825,7 @@ export default function App() {
   };
 
   // ==========================================================================
-  // 7. LÓGICA DE PEDIDOS E ROMANEIO EM PDF (SEM VALORES FINANCEIROS)
+  // LÓGICA DE PEDIDOS E ROMANEIO EM PDF
   // ==========================================================================
   const toggleSelecaoMaterial = (material) => {
     setItensSelecionados((prev) => {
@@ -584,7 +837,7 @@ export default function App() {
           ...prev,
           {
             id: material.id,
-            codigo: material.codigo || material.codigoSinapi || "-",
+            codigo: material.codigo || "-",
             nome: material.nome || "Material sem nome",
             unidade: material.unidade || "UN",
             estoqueAtual: Number(material.quantidade || 0),
@@ -623,7 +876,7 @@ export default function App() {
         (item, idx) => `
         <tr>
           <td style="text-align: center;">${idx + 1}</td>
-          <td style="text-align: center; font-family: monospace;">${item.codigo || item.codigoSinapi || "-"}</td>
+          <td style="text-align: center; font-family: monospace;">${item.codigo || "-"}</td>
           <td>${item.nome}</td>
           <td style="text-align: center;">${item.unidade}</td>
           <td style="text-align: right; font-weight: bold;">${Number(item.qtdPedido)}</td>
@@ -677,7 +930,7 @@ export default function App() {
             <tr>
               <th style="width: 45px; text-align: center;">Item</th>
               <th style="width: 110px; text-align: center;">Código</th>
-              <th>Especificação do Material</th>
+              <th>Descrição do Material</th>
               <th style="width: 75px; text-align: center;">Unid.</th>
               <th style="width: 100px; text-align: right;">Quantidade</th>
             </tr>
@@ -839,7 +1092,7 @@ export default function App() {
   };
 
   // ==========================================================================
-  // 8. TELAS DE CARREGAMENTO, LOGIN E AGUARDANDO APROVAÇÃO DO MASTER
+  // TELAS DE CARREGAMENTO, LOGIN E AGUARDANDO APROVAÇÃO
   // ==========================================================================
   if (verificandoAuth) {
     return (
@@ -899,7 +1152,6 @@ export default function App() {
     );
   }
 
-  // Tela de Bloqueio para Usuários Pendentes ou Desaprovados pelo Master
   if (perfilUsuario && perfilUsuario.status !== "aprovado") {
     const bloqueado = perfilUsuario.status === "bloqueado";
     return (
@@ -932,7 +1184,7 @@ export default function App() {
   }
 
   // ==========================================================================
-  // 9. INTERFACE PRINCIPAL (DASHBOARD ADAPTADO AO NÍVEL DE PERMISSÃO)
+  // INTERFACE PRINCIPAL (DASHBOARD)
   // ==========================================================================
   const badgeRole = {
     master: { texto: "MASTER", cor: "bg-purple-500/20 text-purple-300 border-purple-500/40" },
@@ -997,7 +1249,7 @@ export default function App() {
           </div>
         </header>
 
-        {/* BOTÕES DE AÇÃO OPERACIONAL (Visíveis apenas para MASTER e OPERADOR) */}
+        {/* BOTÕES DE AÇÃO OPERACIONAL */}
         {podeOperar ? (
           <div className="flex flex-wrap items-center gap-3">
             <button
@@ -1012,6 +1264,17 @@ export default function App() {
             >
               <ArrowUpCircle className="w-4 h-4" /> Entrada Rápida
             </button>
+            {isMaster && (
+              <button
+                disabled={importandoCatalogo}
+                onClick={handleImportarCatalogoPadrao}
+                className="flex items-center gap-2 px-4 py-2.5 bg-amber-600/20 hover:bg-amber-600/30 disabled:opacity-50 text-amber-300 border border-amber-500/30 rounded-xl text-sm font-medium transition"
+                title="Carregar todos os 147 materiais padrão da Diretoria para o estoque"
+              >
+                <Database className="w-4 h-4" />
+                {importandoCatalogo ? "Importando..." : "Carregar Lista Padrão DM (147)"}
+              </button>
+            )}
             <button
               onClick={() => setModalNovoPedido(true)}
               className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-blue-600/30 transition"
@@ -1140,14 +1403,14 @@ export default function App() {
                 type="text"
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
-                placeholder="Buscar por nome, código ou categoria..."
+                placeholder="Buscar por código ou descrição..."
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
               />
             </div>
           )}
         </div>
 
-        {/* ABA 1: ESTOQUE DE MATERIAIS */}
+        {/* ABA 1: ESTOQUE DE MATERIAIS (SEM COLUNA CATEGORIA) */}
         {abaAtiva === "estoque" && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
             <div className="overflow-x-auto">
@@ -1155,13 +1418,14 @@ export default function App() {
                 <thead>
                   <tr className="bg-slate-950/60 border-b border-slate-800 text-slate-400 text-xs uppercase">
                     <th className="py-3.5 px-4">Código</th>
-                    <th className="py-3.5 px-4">Material</th>
-                    <th className="py-3.5 px-4">Última Causa / Responsável</th>
-                    <th className="py-3.5 px-4 text-center">Unid.</th>
-                    <th className="py-3.5 px-4 text-right">Saldo</th>
+                    <th className="py-3.5 px-4">Descrição</th>
+                    <th className="py-3.5 px-4 text-center">Unidade</th>
                     {podeVerValores && (
-                      <th className="py-3.5 px-4 text-right">Custo Un.</th>
+                      <th className="py-3.5 px-4 text-right">Preço Unit.</th>
                     )}
+                    <th className="py-3.5 px-4 text-center">Est. Mínimo</th>
+                    <th className="py-3.5 px-4 text-right">Saldo Atual</th>
+                    <th className="py-3.5 px-4">Última Causa / Resp.</th>
                     <th className="py-3.5 px-4 text-center">Status</th>
                     {podeOperar && (
                       <th className="py-3.5 px-4 text-center">Ações</th>
@@ -1171,13 +1435,13 @@ export default function App() {
                 <tbody className="divide-y divide-slate-800 text-sm">
                   {carregando ? (
                     <tr>
-                      <td colSpan="8" className="py-8 text-center text-slate-400">
+                      <td colSpan="9" className="py-8 text-center text-slate-400">
                         Carregando...
                       </td>
                     </tr>
                   ) : materiaisFiltrados.length === 0 ? (
                     <tr>
-                      <td colSpan="8" className="py-8 text-center text-slate-400">
+                      <td colSpan="9" className="py-8 text-center text-slate-400">
                         Nenhum material encontrado.
                       </td>
                     </tr>
@@ -1187,12 +1451,25 @@ export default function App() {
                         key={mat.id}
                         className="hover:bg-slate-800/40 transition"
                       >
-                        <td className="py-3 px-4 font-mono text-xs text-slate-400">
-                          {mat.codigo || mat.codigoSinapi || "-"}
+                        <td className="py-3 px-4 font-mono text-xs text-amber-400 font-semibold">
+                          {mat.codigo || "-"}
                         </td>
                         <td className="py-3 px-4 font-medium text-white">
                           {mat.nome}
-                          <p className="text-xs text-slate-500">{mat.categoria || "Geral"}</p>
+                        </td>
+                        <td className="py-3 px-4 text-center text-slate-300">
+                          {mat.unidade || "UN"}
+                        </td>
+                        {podeVerValores && (
+                          <td className="py-3 px-4 text-right text-slate-300">
+                            R$ {Number(mat.preco || 0).toFixed(2)}
+                          </td>
+                        )}
+                        <td className="py-3 px-4 text-center text-slate-400">
+                          {Number(mat.estoqueMinimo || 0)}
+                        </td>
+                        <td className="py-3 px-4 text-right font-semibold text-white">
+                          {Number(mat.quantidade || 0)}
                         </td>
                         <td className="py-3 px-4 text-xs text-slate-400">
                           <p className="text-slate-300">{mat.ultimaCausa || "Cadastro inicial"}</p>
@@ -1200,17 +1477,6 @@ export default function App() {
                             Por: {mat.atualizadoPor || mat.movimentadoPor || mat.criadoPor || "-"}
                           </p>
                         </td>
-                        <td className="py-3 px-4 text-center text-slate-300">
-                          {mat.unidade || "UN"}
-                        </td>
-                        <td className="py-3 px-4 text-right font-semibold">
-                          {Number(mat.quantidade || 0)}
-                        </td>
-                        {podeVerValores && (
-                          <td className="py-3 px-4 text-right text-slate-300">
-                            R$ {Number(mat.preco || 0).toFixed(2)}
-                          </td>
-                        )}
                         <td className="py-3 px-4 text-center">
                           {Number(mat.quantidade || 0) <=
                           Number(mat.estoqueMinimo || 0) ? (
@@ -1256,7 +1522,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ABA 2: HISTÓRICO DE ROMANEIOS (SEM COLUNA DE VALOR TOTAL) */}
+        {/* ABA 2: HISTÓRICO DE ROMANEIOS */}
         {abaAtiva === "romaneios" && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
             <div className="overflow-x-auto">
@@ -1344,7 +1610,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ABA 3: RELATÓRIOS FINANCEIROS (SOMENTE MASTER E GESTOR) */}
+        {/* ABA 3: RELATÓRIOS FINANCEIROS */}
         {abaAtiva === "relatorios" && podeVerValores && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5 shadow-lg">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
@@ -1426,7 +1692,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ABA 4: GESTÃO E APROVAÇÃO DE USUÁRIOS (EXCLUSIVO MASTER) */}
+        {/* ABA 4: GESTÃO E APROVAÇÃO DE USUÁRIOS */}
         {abaAtiva === "usuarios" && isMaster && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
             <div className="p-5 border-b border-slate-800 flex items-center justify-between">
@@ -1545,12 +1811,19 @@ export default function App() {
         )}
       </div>
 
-      {/* MODAL 1: CADASTRAR NOVO MATERIAL */}
+      {/* ====================================================================
+          MODAL 1: NOVO MATERIAL (COM AUTOCOMPLETE DOS 147 ITENS CHUMBADOS)
+      ==================================================================== */}
       {modalNovoMaterial && podeOperar && (
         <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h2 className="text-lg font-bold">Novo Material</h2>
+              <div>
+                <h2 className="text-lg font-bold">Novo Material</h2>
+                <p className="text-xs text-slate-400">
+                  Digite o código ou pesquise na lista padrão da Diretoria (147 itens)
+                </p>
+              </div>
               <button
                 onClick={() => setModalNovoMaterial(false)}
                 className="text-slate-400 hover:text-white"
@@ -1558,29 +1831,85 @@ export default function App() {
                 <X className="w-5 h-5" />
               </button>
             </div>
+
             <form onSubmit={handleCadastrarMaterial} className="space-y-4">
+              {/* Campo 1: Código com busca instantânea */}
+              <div className="bg-slate-950 border border-amber-500/40 rounded-xl p-3.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-amber-400 uppercase">
+                    Código *
+                  </label>
+                  {itemCatalogoEncontrado && (
+                    <span className="inline-flex items-center gap-1 text-xs text-emerald-400 font-medium">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Preenchido da lista padrão DM
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  placeholder="Digite o código (ex: 44812, 370, 4721) ou nome do item..."
+                  value={novoMaterial.codigo}
+                  onChange={(e) => handleChangeCodigoMaterial(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 focus:border-amber-400 rounded-xl px-3.5 py-2 text-sm font-mono text-white focus:outline-none"
+                />
+
+                {/* Sugestões dos 147 itens da planilha */}
+                {sugestoesCatalogoDM.length > 0 && (
+                  <div className="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden divide-y divide-slate-800 mt-1 max-h-48 overflow-y-auto shadow-xl">
+                    {sugestoesCatalogoDM.map((item, idx) => (
+                      <button
+                        type="button"
+                        key={`${item.codigo}-${item.unidade}-${idx}`}
+                        onClick={() => selecionarItemDoCatalogo(item)}
+                        className="w-full text-left px-3 py-2 hover:bg-amber-500/15 transition flex items-center justify-between gap-2"
+                      >
+                        <div className="truncate">
+                          <span className="font-mono text-xs font-bold text-amber-400 mr-2">
+                            {item.codigo}
+                          </span>
+                          <span className="text-xs text-slate-200">
+                            {item.nome}
+                          </span>
+                        </div>
+                        <span className="text-xs font-semibold text-emerald-400 shrink-0">
+                          {item.unidade} • R$ {Number(item.preco).toFixed(2)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Campo 2: Descrição */}
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">
+                  Descrição *
+                </label>
+                <textarea
+                  rows="2"
+                  required
+                  placeholder="Descrição do material"
+                  value={novoMaterial.nome}
+                  onChange={(e) => {
+                    setItemCatalogoEncontrado(false);
+                    setNovoMaterial({ ...novoMaterial, nome: e.target.value });
+                  }}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                />
+              </div>
+
+              {/* Campos 3 e 4: Unidade e Preço Unitário */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-slate-400 mb-1">
-                    Código (Opcional)
+                    Unidade *
                   </label>
                   <input
                     type="text"
-                    placeholder="Auto se vazio"
-                    value={novoMaterial.codigo}
-                    onChange={(e) =>
-                      setNovoMaterial({ ...novoMaterial, codigo: e.target.value })
-                    }
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">
-                    Unidade
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="UN, M, M3, SC..."
+                    required
+                    placeholder="M, M2, M3, UN, KG..."
                     value={novoMaterial.unidade}
                     onChange={(e) =>
                       setNovoMaterial({
@@ -1591,42 +1920,47 @@ export default function App() {
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
                   />
                 </div>
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">
-                  Nome / Especificação do Material *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Tubo de Concreto DN 400mm"
-                  value={novoMaterial.nome}
-                  onChange={(e) =>
-                    setNovoMaterial({ ...novoMaterial, nome: e.target.value })
-                  }
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">
-                  Categoria
-                </label>
-                <input
-                  type="text"
-                  value={novoMaterial.categoria}
-                  onChange={(e) =>
-                    setNovoMaterial({
-                      ...novoMaterial,
-                      categoria: e.target.value,
-                    })
-                  }
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs text-slate-400 mb-1">
-                    Estoque Inicial
+                    Preço Unitário (R$) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    required
+                    value={novoMaterial.preco}
+                    onChange={(e) =>
+                      setNovoMaterial({ ...novoMaterial, preco: e.target.value })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Campo 5 (Estoque Mínimo) + Saldo Inicial */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Estoque Mínimo *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={novoMaterial.estoqueMinimo}
+                    onChange={(e) =>
+                      setNovoMaterial({
+                        ...novoMaterial,
+                        estoqueMinimo: e.target.value,
+                      })
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">
+                    Saldo Inicial em Estoque
                   </label>
                   <input
                     type="number"
@@ -1641,39 +1975,8 @@ export default function App() {
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">
-                    Estoque Mínimo
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={novoMaterial.estoqueMinimo}
-                    onChange={(e) =>
-                      setNovoMaterial({
-                        ...novoMaterial,
-                        estoqueMinimo: e.target.value,
-                      })
-                    }
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">
-                    Custo Unit. (R$)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={novoMaterial.preco}
-                    onChange={(e) =>
-                      setNovoMaterial({ ...novoMaterial, preco: e.target.value })
-                    }
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
-                  />
-                </div>
               </div>
+
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
                 <button
                   type="button"
@@ -1686,7 +1989,7 @@ export default function App() {
                   type="submit"
                   className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold"
                 >
-                  Salvar
+                  Salvar Material
                 </button>
               </div>
             </form>
@@ -1694,12 +1997,14 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 2: EDITAR MATERIAL / AJUSTAR ESTOQUE (COM CAUSA OBRIGATÓRIA) */}
+      {/* ====================================================================
+          MODAL 2: EDITAR MATERIAL / AJUSTAR ESTOQUE (SEM CAMPO CATEGORIA)
+      ==================================================================== */}
       {modalEditarMaterial && materialEditando && podeOperar && (
         <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h2 className="text-lg font-bold">Editar / Ajustar Estoque</h2>
+              <h2 className="text-lg font-bold">Editar Material / Ajustar Estoque</h2>
               <button
                 onClick={() => setModalEditarMaterial(false)}
                 className="text-slate-400 hover:text-white"
@@ -1744,10 +2049,10 @@ export default function App() {
               </div>
               <div>
                 <label className="block text-xs text-slate-400 mb-1">
-                  Nome / Especificação do Material *
+                  Descrição *
                 </label>
-                <input
-                  type="text"
+                <textarea
+                  rows="2"
                   required
                   value={materialEditando.nome}
                   onChange={(e) =>
@@ -1762,16 +2067,17 @@ export default function App() {
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs text-slate-400 mb-1">
-                    Saldo em Estoque
+                    Preço Unitário (R$)
                   </label>
                   <input
                     type="number"
+                    step="0.01"
                     min="0"
-                    value={materialEditando.quantidade}
+                    value={materialEditando.preco}
                     onChange={(e) =>
                       setMaterialEditando({
                         ...materialEditando,
-                        quantidade: e.target.value,
+                        preco: e.target.value,
                       })
                     }
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
@@ -1796,17 +2102,16 @@ export default function App() {
                 </div>
                 <div>
                   <label className="block text-xs text-slate-400 mb-1">
-                    Custo Unit. (R$)
+                    Saldo Atual
                   </label>
                   <input
                     type="number"
-                    step="0.01"
                     min="0"
-                    value={materialEditando.preco}
+                    value={materialEditando.quantidade}
                     onChange={(e) =>
                       setMaterialEditando({
                         ...materialEditando,
-                        preco: e.target.value,
+                        quantidade: e.target.value,
                       })
                     }
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
@@ -1848,7 +2153,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 3: ENTRADA RÁPIDA (COM CAUSA OBRIGATÓRIA) */}
+      {/* MODAL 3: ENTRADA RÁPIDA */}
       {modalEntradaRapida && podeOperar && (
         <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4">
@@ -1875,7 +2180,7 @@ export default function App() {
                   <option value="">-- Escolha --</option>
                   {materiais.map((m) => (
                     <option key={m.id} value={m.id}>
-                      {m.nome} (Saldo: {m.quantidade} {m.unidade})
+                      [{m.codigo}] {m.nome} (Saldo: {m.quantidade} {m.unidade})
                     </option>
                   ))}
                 </select>
@@ -2012,7 +2317,12 @@ export default function App() {
                             <Square className="w-5 h-5 text-slate-500" />
                           )}
                           <div>
-                            <p className="font-medium text-white">{mat.nome}</p>
+                            <p className="font-medium text-white">
+                              <span className="font-mono text-xs text-amber-400 mr-2">
+                                [{mat.codigo}]
+                              </span>
+                              {mat.nome}
+                            </p>
                             <p className="text-xs text-slate-400">
                               Saldo disponível: {saldo} {mat.unidade || "UN"}
                             </p>
