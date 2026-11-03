@@ -112,7 +112,7 @@ const formatarQuantidadeBR = (valor) => {
 };
 
 // ============================================================================
-// 2. LISTA OFICIAL DE MATERIAIS DA DIRETORIA DE MANUTENÇÃO (147 ITENS CHUMBADOS)
+// 2. LISTA OFICIAL DE MATERIAIS DA DIRETORIA DE MANUTENÇÃO (147 ITENS)
 // ============================================================================
 const CATALOGO_PADRAO_DM = [
   { codigo: "44812", nome: "TUBO CORRUGADO PEAD, PAREDE DUPLA, INTERNA LISA, JEI DN/DI 500 MM (DRENAGEM/ESGOTO)", unidade: "M", preco: 362.56 },
@@ -264,7 +264,7 @@ const CATALOGO_PADRAO_DM = [
   { codigo: "33", nome: "ACO CA-50, 8,0 MM, VERGALHAO", unidade: "KG", preco: 7.79 },
 ];
 
-// Lista oficial de Requerentes / Destinos (23 opções incluindo DIOPE, FLORAM, COMCAP e COQUEIROS)
+// Lista oficial de Requerentes / Destinos
 const LISTA_REQUERENTES = [
   "INTENDÊNCIA DE CANASVIEIRAS",
   "INTENDÊNCIA DE RATONES",
@@ -305,9 +305,7 @@ export default function App() {
   const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState("estoque");
   const [busca, setBusca] = useState("");
-  const [mesRelatorio, setMesRelatorio] = useState(() =>
-    new Date().toISOString().slice(0, 7)
-  ); // Formato YYYY-MM
+  const [filtroRequerenteRelatorio, setFiltroRequerenteRelatorio] = useState("TODOS");
   const [processandoPedido, setProcessandoPedido] = useState(false);
   const [estornandoId, setEstornandoId] = useState(null);
 
@@ -337,7 +335,7 @@ export default function App() {
   const [entradaQtd, setEntradaQtd] = useState("");
   const [causaEntrada, setCausaEntrada] = useState("Nota Fiscal / Reposição de Almoxarifado");
 
-  // Estados de Novo Pedido / Emissão de Romaneio (Agora com campo Observação)
+  // Estados de Novo Pedido / Emissão de Romaneio
   const [itensSelecionados, setItensSelecionados] = useState([]);
   const [requerente, setRequerente] = useState(LISTA_REQUERENTES[0]);
   const [autorizacao, setAutorizacao] = useState("");
@@ -507,6 +505,51 @@ export default function App() {
   }, [user, perfilUsuario?.status, perfilUsuario?.role]);
 
   // ==========================================================================
+  // MESES DISPONÍVEIS EXTRAÍDOS DOS ROMANEIOS EXISTENTES NO BANCO DE DADOS
+  // ==========================================================================
+  const mesesDisponiveis = useMemo(() => {
+    const setMeses = new Set();
+    romaneios.forEach((r) => {
+      if (r.status !== "cancelado" && r.dataEmissao) {
+        const anoMes = r.dataEmissao.slice(0, 7); // "YYYY-MM"
+        if (anoMes && anoMes.length === 7) {
+          setMeses.add(anoMes);
+        }
+      }
+    });
+
+    const lista = Array.from(setMeses).sort().reverse(); // Mais recente primeiro
+
+    // Garante que o mês atual sempre apareça na lista mesmo se não houver romaneios
+    const mesAtual = new Date().toISOString().slice(0, 7);
+    if (!lista.includes(mesAtual)) {
+      lista.unshift(mesAtual);
+    }
+
+    return lista;
+  }, [romaneios]);
+
+  const [mesRelatorio, setMesRelatorio] = useState(() => {
+    return new Date().toISOString().slice(0, 7);
+  });
+
+  // Mantém o mês selecionado válido caso mude os dados
+  useEffect(() => {
+    if (mesesDisponiveis.length > 0 && !mesesDisponiveis.includes(mesRelatorio)) {
+      setMesRelatorio(mesesDisponiveis[0]);
+    }
+  }, [mesesDisponiveis, mesRelatorio]);
+
+  // Formata "YYYY-MM" para "Novembro de 2026" (com inicial maiúscula)
+  const formatarMesAnoLegivel = (anoMesStr) => {
+    if (!anoMesStr || !anoMesStr.includes("-")) return anoMesStr;
+    const [ano, mes] = anoMesStr.split("-");
+    const dataRef = new Date(Number(ano), Number(mes) - 1, 1);
+    const nomeMes = dataRef.toLocaleString("pt-BR", { month: "long" });
+    return `${nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1)} de ${ano}`;
+  };
+
+  // ==========================================================================
   // AUTOPREENCHIMENTO PELO CATÁLOGO CHUMBADO DA DIRETORIA (147 MATERIAIS)
   // ==========================================================================
   const handleChangeCodigoMaterial = (valorDigitado) => {
@@ -633,7 +676,7 @@ export default function App() {
     );
   }, [materiais, busca]);
 
-  // Matriz Gerencial: Linhas = Requerentes | Colunas = Materiais | Filtro = Mês (YYYY-MM)
+  // Matriz Gerencial: Linhas = Requerentes | Colunas = Materiais | Filtro = Mês selecionado no dropdown
   const matrizRelatorioMensal = useMemo(() => {
     const romaneiosDoMes = romaneios.filter((r) => {
       if (r.status === "cancelado") return false;
@@ -672,7 +715,6 @@ export default function App() {
       a.nome.localeCompare(b.nome)
     );
 
-    // Ordena os requerentes conforme a lista oficial ou alfabeticamente
     const linhasRequerentes = Array.from(mapaRequerentes.entries())
       .map(([requerenteNome, quantidadesPorMaterial]) => ({
         requerente: requerenteNome,
@@ -728,8 +770,7 @@ export default function App() {
       return alert("Não há movimentações neste mês para imprimir.");
     }
 
-    const [ano, mes] = mesRelatorio.split("-");
-    const mesFormatado = `${mes}/${ano}`;
+    const mesFormatado = formatarMesAnoLegivel(mesRelatorio);
 
     const thMateriais = colunasMateriais
       .map(
@@ -1050,7 +1091,7 @@ export default function App() {
   };
 
   // ==========================================================================
-  // LÓGICA DE PEDIDOS E ROMANEIO EM PDF (COM CAMPO OBSERVAÇÃO)
+  // LÓGICA DE PEDIDOS E ROMANEIO EM PDF
   // ==========================================================================
   const toggleSelecaoMaterial = (material) => {
     setItensSelecionados((prev) => {
@@ -1197,23 +1238,19 @@ export default function App() {
     if (!requerente.trim() || !autorizacao.trim())
       return alert("Preencha Requerente e Autorização.");
 
-    const itensNormalizados = itensSelecionados.map((item) => ({
-      ...item,
-      qtdPedido: lerNumeroBR(item.qtdPedido),
-    }));
-
-    const itensValidos = itensNormalizados.filter(
-      (item) => Number(item.qtdPedido) > 0
+    const itensNormalizados = itensSelecionados.filter(
+      (item) => Number(lerNumeroBR(item.qtdPedido)) > 0
     );
-    if (itensValidos.length === 0)
+    if (itensNormalizados.length === 0)
       return alert("Selecione ao menos um material com quantidade válida.");
 
-    for (const item of itensValidos) {
+    for (const item of itensNormalizados) {
+      const qNum = lerNumeroBR(item.qtdPedido);
       const matBanco = materiais.find((m) => m.id === item.id);
       const saldoAtual = Number(matBanco?.quantidade ?? item.estoqueAtual ?? 0);
-      if (Number(item.qtdPedido) > saldoAtual) {
+      if (qNum > saldoAtual) {
         return alert(
-          `Estoque insuficiente para "${item.nome}". Disponível: ${formatarQuantidadeBR(saldoAtual)}, Solicitado: ${formatarQuantidadeBR(item.qtdPedido)}.`
+          `Estoque insuficiente para "${item.nome}". Disponível: ${formatarQuantidadeBR(saldoAtual)}, Solicitado: ${formatarQuantidadeBR(qNum)}.`
         );
       }
     }
@@ -1224,23 +1261,24 @@ export default function App() {
       const batch = writeBatch(db);
       const numeroRomaneio = String(Date.now()).slice(-6);
 
-      for (const item of itensValidos) {
+      for (const item of itensNormalizados) {
+        const qNum = lerNumeroBR(item.qtdPedido);
         const matBanco = materiais.find((m) => m.id === item.id);
         const saldoAtual = Number(
           matBanco?.quantidade ?? item.estoqueAtual ?? 0
         );
         const materialRef = doc(db, "materiais", String(item.id));
         batch.update(materialRef, {
-          quantidade: Math.max(0, saldoAtual - Number(item.qtdPedido)),
+          quantidade: Math.max(0, saldoAtual - qNum),
           movimentadoPor: user.email,
           ultimaCausa: `Saída Romaneio #${numeroRomaneio} (${requerente})`,
           ultimaMovimentacao: serverTimestamp(),
         });
       }
 
-      const valorTotal = itensValidos.reduce(
+      const valorTotal = itensNormalizados.reduce(
         (acc, item) =>
-          acc + Number(item.qtdPedido) * Number(item.precoUnitario || 0),
+          acc + lerNumeroBR(item.qtdPedido) * Number(item.precoUnitario || 0),
         0
       );
 
@@ -1250,8 +1288,9 @@ export default function App() {
         requerente: requerente.trim(),
         autorizacao: autorizacao.trim(),
         observacao: observacaoPedido.trim(),
-        itens: itensValidos.map((i) => ({
+        itens: itensNormalizados.map((i) => ({
           ...i,
+          qtdPedido: lerNumeroBR(i.qtdPedido),
           precoUnitario: Number(i.precoUnitario || 0),
         })),
         valorTotal: Number(valorTotal || 0),
@@ -1485,51 +1524,49 @@ export default function App() {
           </div>
         </header>
 
-        {/* BOTÕES DE AÇÃO OPERACIONAL + BOTÃO INVENTÁRIO DE ESTOQUE */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {podeOperar ? (
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                onClick={() => setModalNovoMaterial(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-medium border border-slate-700 transition"
-              >
-                <Plus className="w-4 h-4" /> Novo Material
-              </button>
-              <button
-                onClick={() => setModalEntradaRapida(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-sm font-medium transition"
-              >
-                <ArrowUpCircle className="w-4 h-4" /> Entrada Rápida
-              </button>
-              <button
-                onClick={gerarPDFInventarioEstoque}
-                className="flex items-center gap-2 px-4 py-2.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-xl text-sm font-medium transition"
-                title="Gerar planilha PDF para conferência física de estoque a caneta"
-              >
-                <ClipboardCheck className="w-4 h-4" /> Inventário de Estoque
-              </button>
-              <button
-                onClick={() => setModalNovoPedido(true)}
-                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-blue-600/30 transition"
-              >
-                <FileText className="w-4 h-4" /> Novo Pedido / Romaneio
-              </button>
+        {/* BOTÕES DE AÇÃO OPERACIONAL */}
+        {podeOperar ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => setModalNovoMaterial(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-medium border border-slate-700 transition"
+            >
+              <Plus className="w-4 h-4" /> Novo Material
+            </button>
+            <button
+              onClick={() => setModalEntradaRapida(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-sm font-medium transition"
+            >
+              <ArrowUpCircle className="w-4 h-4" /> Entrada Rápida
+            </button>
+            <button
+              onClick={gerarPDFInventarioEstoque}
+              className="flex items-center gap-2 px-4 py-2.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-xl text-sm font-medium transition"
+              title="Gerar planilha PDF para conferência física de estoque a caneta"
+            >
+              <ClipboardCheck className="w-4 h-4" /> Inventário de Estoque
+            </button>
+            <button
+              onClick={() => setModalNovoPedido(true)}
+              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-blue-600/30 transition"
+            >
+              <FileText className="w-4 h-4" /> Novo Pedido / Romaneio
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between w-full gap-3">
+            <div className="bg-blue-950/30 border border-blue-500/30 text-blue-300 px-4 py-2.5 rounded-xl text-xs flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 shrink-0" />
+              Modo Gestor: Visualização de Dashboards, consulta de Estoque e emissão de Relatórios Gerenciais.
             </div>
-          ) : (
-            <div className="flex flex-wrap items-center justify-between w-full gap-3">
-              <div className="bg-blue-950/30 border border-blue-500/30 text-blue-300 px-4 py-2.5 rounded-xl text-xs flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 shrink-0" />
-                Modo Gestor: Visualização de Dashboards, consulta de Estoque e emissão de Relatórios Gerenciais.
-              </div>
-              <button
-                onClick={gerarPDFInventarioEstoque}
-                className="flex items-center gap-2 px-4 py-2.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-xl text-sm font-medium transition"
-              >
-                <ClipboardCheck className="w-4 h-4" /> Inventário de Estoque
-              </button>
-            </div>
-          )}
-        </div>
+            <button
+              onClick={gerarPDFInventarioEstoque}
+              className="flex items-center gap-2 px-4 py-2.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-xl text-sm font-medium transition"
+            >
+              <ClipboardCheck className="w-4 h-4" /> Inventário de Estoque
+            </button>
+          </div>
+        )}
 
         {/* CARDS DE INDICADORES */}
         <section
@@ -1852,7 +1889,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ABA 3: RELATÓRIO GERENCIAL (MATRIZ REQUERENTES X MATERIAIS POR MÊS) */}
+        {/* ABA 3: RELATÓRIO GERENCIAL (COM DROPDOWN DE MESES DISPONÍVEIS) */}
         {abaAtiva === "relatorios" && podeVerValores && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5 shadow-lg">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
@@ -1861,18 +1898,23 @@ export default function App() {
                   Relatório Gerencial: Quantidades por Requerente × Material
                 </h2>
                 <p className="text-xs text-slate-400">
-                  Matriz consolidada de materiais retirados no mês selecionado ({matrizRelatorioMensal.totalRomaneiosMes} romaneios ativos no período)
+                  Matriz consolidada de materiais retirados ({matrizRelatorioMensal.totalRomaneiosMes} romaneios no período)
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5">
-                  <span className="text-xs text-slate-400">Mês:</span>
-                  <input
-                    type="month"
+                <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2">
+                  <span className="text-xs text-slate-400 font-medium">Mês:</span>
+                  <select
                     value={mesRelatorio}
                     onChange={(e) => setMesRelatorio(e.target.value)}
-                    className="bg-transparent text-xs text-white focus:outline-none"
-                  />
+                    className="bg-transparent text-xs font-semibold text-white focus:outline-none cursor-pointer"
+                  >
+                    {mesesDisponiveis.map((mesStr) => (
+                      <option key={mesStr} value={mesStr} className="bg-slate-900 text-white">
+                        {formatarMesAnoLegivel(mesStr)}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <button
                   onClick={imprimirMatrizRelatorioPDF}
@@ -1891,7 +1933,7 @@ export default function App() {
 
             {matrizRelatorioMensal.colunasMateriais.length === 0 ? (
               <div className="py-12 text-center text-slate-400 text-sm">
-                Nenhuma saída de material registrada para o mês selecionado ({mesRelatorio}).
+                Nenhuma saída de material registrada para o mês selecionado ({formatarMesAnoLegivel(mesRelatorio)}).
               </div>
             ) : (
               <div className="overflow-x-auto border border-slate-800 rounded-xl">
@@ -2505,7 +2547,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 4: NOVO PEDIDO E ROMANEIO (COM CAMPO OBSERVAÇÃO OPCIONAL) */}
+      {/* MODAL 4: NOVO PEDIDO E ROMANEIO */}
       {modalNovoPedido && podeOperar && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full p-6 space-y-5 max-h-[90vh] flex flex-col">
