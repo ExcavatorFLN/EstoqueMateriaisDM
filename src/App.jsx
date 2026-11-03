@@ -49,6 +49,7 @@ import {
   BarChart3,
   Download,
   CheckCircle2,
+  ClipboardCheck,
 } from "lucide-react";
 
 // ============================================================================
@@ -263,7 +264,7 @@ const CATALOGO_PADRAO_DM = [
   { codigo: "33", nome: "ACO CA-50, 8,0 MM, VERGALHAO", unidade: "KG", preco: 7.79 },
 ];
 
-// Lista oficial de Requerentes / Destinos
+// Lista oficial de Requerentes / Destinos (23 opções incluindo DIOPE, FLORAM, COMCAP e COQUEIROS)
 const LISTA_REQUERENTES = [
   "INTENDÊNCIA DE CANASVIEIRAS",
   "INTENDÊNCIA DE RATONES",
@@ -281,9 +282,13 @@ const LISTA_REQUERENTES = [
   "INTENDÊNCIA DO CENTRO",
   "INTENDÊNCIA DO SACO GRANDE",
   "INTENDÊNCIA DA TRINDADE",
+  "INTENDÊNCIA DE COQUEIROS",
   "INTENDÊNCIA VARG GRANDE E VARG DO BOM JESUS",
   "DIRETORIA DE MANUTENÇÃO",
   "DIRETORIA DE SERVIÇOS",
+  "DIOPE",
+  "FLORAM",
+  "COMCAP",
 ];
 
 export default function App() {
@@ -300,7 +305,9 @@ export default function App() {
   const [carregando, setCarregando] = useState(true);
   const [abaAtiva, setAbaAtiva] = useState("estoque");
   const [busca, setBusca] = useState("");
-  const [filtroRequerenteRelatorio, setFiltroRequerenteRelatorio] = useState("TODOS");
+  const [mesRelatorio, setMesRelatorio] = useState(() =>
+    new Date().toISOString().slice(0, 7)
+  ); // Formato YYYY-MM
   const [processandoPedido, setProcessandoPedido] = useState(false);
   const [estornandoId, setEstornandoId] = useState(null);
 
@@ -330,10 +337,11 @@ export default function App() {
   const [entradaQtd, setEntradaQtd] = useState("");
   const [causaEntrada, setCausaEntrada] = useState("Nota Fiscal / Reposição de Almoxarifado");
 
-  // Estados de Novo Pedido / Emissão de Romaneio
+  // Estados de Novo Pedido / Emissão de Romaneio (Agora com campo Observação)
   const [itensSelecionados, setItensSelecionados] = useState([]);
   const [requerente, setRequerente] = useState(LISTA_REQUERENTES[0]);
   const [autorizacao, setAutorizacao] = useState("");
+  const [observacaoPedido, setObservacaoPedido] = useState("");
 
   // ==========================================================================
   // PERMISSÕES DERIVADAS DO PERFIL ATUAL
@@ -592,7 +600,7 @@ export default function App() {
   };
 
   // ==========================================================================
-  // INDICADORES DO DASHBOARD E RELATÓRIOS
+  // INDICADORES DO DASHBOARD E RELATÓRIO GERENCIAL (MATRIZ REQUERENTES X MATERIAIS)
   // ==========================================================================
   const indicadores = useMemo(() => {
     const totalItens = materiais.length;
@@ -625,44 +633,290 @@ export default function App() {
     );
   }, [materiais, busca]);
 
-  const dadosRelatorioFinanceiro = useMemo(() => {
-    const romaneiosValidos = romaneios.filter((r) => {
+  // Matriz Gerencial: Linhas = Requerentes | Colunas = Materiais | Filtro = Mês (YYYY-MM)
+  const matrizRelatorioMensal = useMemo(() => {
+    const romaneiosDoMes = romaneios.filter((r) => {
       if (r.status === "cancelado") return false;
-      if (filtroRequerenteRelatorio !== "TODOS" && r.requerente !== filtroRequerenteRelatorio) {
-        return false;
-      }
-      return true;
+      if (!r.dataEmissao) return false;
+      return r.dataEmissao.slice(0, 7) === mesRelatorio;
     });
 
-    const valorTotalSaidas = romaneiosValidos.reduce(
-      (acc, r) => acc + Number(r.valorTotal || 0),
-      0
+    const mapaMateriais = new Map();
+    const mapaRequerentes = new Map();
+
+    romaneiosDoMes.forEach((rom) => {
+      const reqNome = rom.requerente || "NÃO INFORMADO";
+      if (!mapaRequerentes.has(reqNome)) {
+        mapaRequerentes.set(reqNome, {});
+      }
+      const linhaReq = mapaRequerentes.get(reqNome);
+
+      (rom.itens || []).forEach((item) => {
+        const chaveMat = `${item.codigo || "-"}||${item.nome || "Material"}`;
+        if (!mapaMateriais.has(chaveMat)) {
+          mapaMateriais.set(chaveMat, {
+            chave: chaveMat,
+            codigo: item.codigo || "-",
+            nome: item.nome || "Material",
+            unidade: item.unidade || "UN",
+            totalGeral: 0,
+          });
+        }
+        const qtd = Number(item.qtdPedido || 0);
+        linhaReq[chaveMat] = (linhaReq[chaveMat] || 0) + qtd;
+        mapaMateriais.get(chaveMat).totalGeral += qtd;
+      });
+    });
+
+    const colunasMateriais = Array.from(mapaMateriais.values()).sort((a, b) =>
+      a.nome.localeCompare(b.nome)
     );
 
-    return {
-      lista: romaneiosValidos,
-      valorTotalSaidas,
-    };
-  }, [romaneios, filtroRequerenteRelatorio]);
+    // Ordena os requerentes conforme a lista oficial ou alfabeticamente
+    const linhasRequerentes = Array.from(mapaRequerentes.entries())
+      .map(([requerenteNome, quantidadesPorMaterial]) => ({
+        requerente: requerenteNome,
+        quantidades: quantidadesPorMaterial,
+      }))
+      .sort((a, b) => a.requerente.localeCompare(b.requerente));
 
-  const exportarRelatorioCSV = () => {
-    const cabecalho = "Numero_Romaneio;Data_Emissao;Requerente_Destino;Autorizado_Por;Emitido_Por;Qtd_Itens;Valor_Total_R$\n";
-    const linhas = dadosRelatorioFinanceiro.lista
-      .map((r) => {
-        const data = r.dataEmissao ? new Date(r.dataEmissao).toLocaleString("pt-BR") : "-";
-        const vlr = formatarMoedaBR(r.valorTotal || 0);
-        return `${r.numeroRomaneio};"${data}";"${r.requerente}";"${r.autorizacao}";"${r.emitidoPorEmail || ""}";${formatarQuantidadeBR((r.itens || []).length)};"${vlr}"`;
+    return {
+      colunasMateriais,
+      linhasRequerentes,
+      totalRomaneiosMes: romaneiosDoMes.length,
+    };
+  }, [romaneios, mesRelatorio]);
+
+  const exportarMatrizCSV = () => {
+    const { colunasMateriais, linhasRequerentes } = matrizRelatorioMensal;
+    if (colunasMateriais.length === 0) {
+      return alert("Não há movimentações neste mês para exportar.");
+    }
+
+    const cabecalhoCols = colunasMateriais
+      .map((m) => `"[${m.codigo}] ${m.nome} (${m.unidade})"`)
+      .join(";");
+    const cabecalho = `Requerente / Destino;${cabecalhoCols}\n`;
+
+    const linhas = linhasRequerentes
+      .map((linha) => {
+        const valores = colunasMateriais
+          .map((m) => formatarQuantidadeBR(linha.quantidades[m.chave] || 0))
+          .join(";");
+        return `"${linha.requerente}";${valores}`;
       })
       .join("\n");
 
-    const blob = new Blob(["\uFEFF" + cabecalho + linhas], {
+    const rodapeValores = colunasMateriais
+      .map((m) => formatarQuantidadeBR(m.totalGeral))
+      .join(";");
+    const rodape = `"TOTAL MENSAL";${rodapeValores}`;
+
+    const blob = new Blob(["\uFEFF" + cabecalho + linhas + "\n" + rodape], {
       type: "text/csv;charset=utf-8;",
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `relatorio_almoxarifado_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `relatorio_gerencial_${mesRelatorio}.csv`;
     a.click();
+  };
+
+  const imprimirMatrizRelatorioPDF = () => {
+    const { colunasMateriais, linhasRequerentes } = matrizRelatorioMensal;
+    if (colunasMateriais.length === 0) {
+      return alert("Não há movimentações neste mês para imprimir.");
+    }
+
+    const [ano, mes] = mesRelatorio.split("-");
+    const mesFormatado = `${mes}/${ano}`;
+
+    const thMateriais = colunasMateriais
+      .map(
+        (m) =>
+          `<th style="text-align: center; font-size: 10px; min-width: 70px;">[${m.codigo}]<br/>${m.nome}<br/>(${m.unidade})</th>`
+      )
+      .join("");
+
+    const trRequerentes = linhasRequerentes
+      .map((linha) => {
+        const tds = colunasMateriais
+          .map((m) => {
+            const val = linha.quantidades[m.chave] || 0;
+            return `<td style="text-align: right; font-weight: ${
+              val > 0 ? "bold" : "normal"
+            }; color: ${val > 0 ? "#111827" : "#9ca3af"};">${
+              val > 0 ? formatarQuantidadeBR(val) : "-"
+            }</td>`;
+          })
+          .join("");
+        return `<tr><td style="font-weight: bold;">${linha.requerente}</td>${tds}</tr>`;
+      })
+      .join("");
+
+    const tdsTotais = colunasMateriais
+      .map(
+        (m) =>
+          `<td style="text-align: right; font-weight: bold; background: #f3f4f6;">${formatarQuantidadeBR(
+            m.totalGeral
+          )}</td>`
+      )
+      .join("");
+
+    const html = `
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+      <head>
+        <meta charset="UTF-8" />
+        <title>Relatório Gerencial - ${mesFormatado}</title>
+        <style>
+          @page { size: landscape; margin: 15mm; }
+          body { font-family: Arial, Helvetica, sans-serif; color: #111827; }
+          .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #111827; padding-bottom: 12px; margin-bottom: 16px; }
+          .logo-pdf { height: 55px; max-width: 240px; object-fit: contain; }
+          table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+          th, td { border: 1px solid #9ca3af; padding: 6px 8px; font-size: 11px; }
+          th { background-color: #f3f4f6; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <img src="/logo-prefeitura.jpg" class="logo-pdf" alt="Prefeitura de Florianópolis" onerror="this.style.display='none'" />
+            <div>
+              <h2 style="margin: 0; font-size: 17px; text-transform: uppercase;">Relatório Gerencial de Materiais por Requerente</h2>
+              <p style="margin: 4px 0 0 0; font-size: 12px; color: #4b5563;">Secretaria de Infraestrutura e Manutenção da Cidade</p>
+            </div>
+          </div>
+          <div style="text-align: right; font-size: 12px;">
+            <strong>Mês de Referência: ${mesFormatado}</strong><br/>
+            Emitido em: ${new Date().toLocaleString("pt-BR")}
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align: left; min-width: 180px;">Requerente / Destino</th>
+              ${thMateriais}
+            </tr>
+          </thead>
+          <tbody>
+            ${trRequerentes}
+            <tr>
+              <td style="font-weight: bold; background: #f3f4f6;">TOTAL GERAL DO MÊS</td>
+              ${tdsTotais}
+            </tr>
+          </tbody>
+        </table>
+        <script>
+          window.onload = function() { setTimeout(function() { window.print(); }, 350); };
+        </script>
+      </body>
+      </html>
+    `;
+
+    const win = window.open("", "_blank");
+    if (win) {
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+    } else {
+      alert("Permita pop-ups no navegador para visualizar e imprimir o relatório.");
+    }
+  };
+
+  // ==========================================================================
+  // INVENTÁRIO DE ESTOQUE EM PDF (PARA CONFERÊNCIA FÍSICA A CANETA)
+  // ==========================================================================
+  const gerarPDFInventarioEstoque = () => {
+    if (materiais.length === 0) {
+      return alert("Não há materiais cadastrados no estoque para gerar o inventário.");
+    }
+
+    const dataHoraAtual = new Date().toLocaleString("pt-BR");
+
+    const linhasMateriais = materiais
+      .map(
+        (mat, idx) => `
+        <tr>
+          <td style="text-align: center;">${idx + 1}</td>
+          <td style="text-align: center; font-family: monospace; font-weight: bold;">${mat.codigo || "-"}</td>
+          <td>${mat.nome}</td>
+          <td style="text-align: center;">${mat.unidade || "UN"}</td>
+          <td style="text-align: right; font-weight: bold;">${formatarQuantidadeBR(mat.quantidade)}</td>
+          <td style="height: 24px;"></td>
+        </tr>`
+      )
+      .join("");
+
+    const html = `
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+      <head>
+        <meta charset="UTF-8" />
+        <title>Inventário de Estoque - Conferência Física</title>
+        <style>
+          body { font-family: Arial, Helvetica, sans-serif; padding: 24px; color: #111827; }
+          .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #111827; padding-bottom: 12px; margin-bottom: 18px; }
+          .logo-pdf { height: 58px; max-width: 250px; object-fit: contain; }
+          table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+          th, td { border: 1px solid #6b7280; padding: 8px 10px; font-size: 12px; }
+          th { background-color: #f3f4f6; text-align: left; font-weight: bold; }
+          .assinaturas { display: flex; justify-content: space-between; margin-top: 65px; text-align: center; }
+          .ass-box { width: 44%; border-top: 1px solid #111827; padding-top: 8px; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <img src="/logo-prefeitura.jpg" class="logo-pdf" alt="Prefeitura de Florianópolis" onerror="this.style.display='none'" />
+            <div>
+              <h2 style="margin: 0; font-size: 18px; text-transform: uppercase;">Planilha de Inventário e Conferência de Estoque</h2>
+              <p style="margin: 4px 0 0 0; font-size: 12px; color: #4b5563;">Secretaria de Infraestrutura e Manutenção da Cidade</p>
+            </div>
+          </div>
+          <div style="text-align: right; font-size: 12px;">
+            <strong>Data/Hora de Emissão:</strong><br/>${dataHoraAtual}<br/>
+            <span style="font-size: 11px; color: #4b5563;">Emitido por: ${user.displayName || user.email}</span>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 38px; text-align: center;">#</th>
+              <th style="width: 90px; text-align: center;">Código</th>
+              <th>Descrição do Material</th>
+              <th style="width: 60px; text-align: center;">Unid.</th>
+              <th style="width: 115px; text-align: right;">Estoque Sistema</th>
+              <th style="width: 150px; text-align: center;">Estoque Físico (Anotar)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${linhasMateriais}
+          </tbody>
+        </table>
+
+        <div class="assinaturas">
+          <div class="ass-box">Responsável pela Conferência Física (Nome / Matrícula)</div>
+          <div class="ass-box">Visto Supervisão / Diretoria de Manutenção</div>
+        </div>
+
+        <script>
+          window.onload = function() { setTimeout(function() { window.print(); }, 350); };
+        </script>
+      </body>
+      </html>
+    `;
+
+    const win = window.open("", "_blank");
+    if (win) {
+      win.document.open();
+      win.document.write(html);
+      win.document.close();
+    } else {
+      alert("Permita pop-ups no navegador para gerar e imprimir o PDF de inventário.");
+    }
   };
 
   // ==========================================================================
@@ -796,7 +1050,7 @@ export default function App() {
   };
 
   // ==========================================================================
-  // LÓGICA DE PEDIDOS E ROMANEIO EM PDF
+  // LÓGICA DE PEDIDOS E ROMANEIO EM PDF (COM CAMPO OBSERVAÇÃO)
   // ==========================================================================
   const toggleSelecaoMaterial = (material) => {
     setItensSelecionados((prev) => {
@@ -839,6 +1093,10 @@ export default function App() {
           DOCUMENTO CANCELADO E ESTORNADO AO ESTOQUE
           ${dadosRomaneio.motivoCancelamento ? `<br/><span style="font-weight:normal;font-size:12px;">Motivo: ${dadosRomaneio.motivoCancelamento}</span>` : ""}
         </div>`
+      : "";
+
+    const blocoObservacao = dadosRomaneio.observacao
+      ? `<p style="margin: 6px 0 0 0; padding-top: 6px; border-top: 1px dashed #d1d5db;"><strong>Observação:</strong> ${dadosRomaneio.observacao}</p>`
       : "";
 
     const linhasTabela = (dadosRomaneio.itens || [])
@@ -893,6 +1151,7 @@ export default function App() {
           <p style="margin: 4px 0;"><strong>Requerente / Destino da Obra:</strong> ${dadosRomaneio.requerente}</p>
           <p style="margin: 4px 0;"><strong>Autorizado por:</strong> ${dadosRomaneio.autorizacao}</p>
           <p style="margin: 4px 0;"><strong>Operador Responsável:</strong> ${dadosRomaneio.emitidoPorNome || "Almoxarifado"} (${dadosRomaneio.emitidoPorEmail || "N/A"})</p>
+          ${blocoObservacao}
         </div>
 
         <table>
@@ -990,6 +1249,7 @@ export default function App() {
         numeroRomaneio,
         requerente: requerente.trim(),
         autorizacao: autorizacao.trim(),
+        observacao: observacaoPedido.trim(),
         itens: itensValidos.map((i) => ({
           ...i,
           precoUnitario: Number(i.precoUnitario || 0),
@@ -1008,6 +1268,7 @@ export default function App() {
       setItensSelecionados([]);
       setRequerente(LISTA_REQUERENTES[0]);
       setAutorizacao("");
+      setObservacaoPedido("");
       setModalNovoPedido(false);
       setProcessandoPedido(false);
       gerarPDFRomaneio(dadosRomaneio);
@@ -1224,34 +1485,51 @@ export default function App() {
           </div>
         </header>
 
-        {/* BOTÕES DE AÇÃO OPERACIONAL */}
-        {podeOperar ? (
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => setModalNovoMaterial(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-medium border border-slate-700 transition"
-            >
-              <Plus className="w-4 h-4" /> Novo Material
-            </button>
-            <button
-              onClick={() => setModalEntradaRapida(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-sm font-medium transition"
-            >
-              <ArrowUpCircle className="w-4 h-4" /> Entrada Rápida
-            </button>
-            <button
-              onClick={() => setModalNovoPedido(true)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-blue-600/30 transition"
-            >
-              <FileText className="w-4 h-4" /> Novo Pedido / Romaneio
-            </button>
-          </div>
-        ) : (
-          <div className="bg-blue-950/30 border border-blue-500/30 text-blue-300 px-4 py-2.5 rounded-xl text-xs flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 shrink-0" />
-            Modo Gestor: Acesso habilitado para visualização de Dashboards, consulta de Estoque e emissão de Relatórios Financeiros.
-          </div>
-        )}
+        {/* BOTÕES DE AÇÃO OPERACIONAL + BOTÃO INVENTÁRIO DE ESTOQUE */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {podeOperar ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => setModalNovoMaterial(true)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-medium border border-slate-700 transition"
+              >
+                <Plus className="w-4 h-4" /> Novo Material
+              </button>
+              <button
+                onClick={() => setModalEntradaRapida(true)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-sm font-medium transition"
+              >
+                <ArrowUpCircle className="w-4 h-4" /> Entrada Rápida
+              </button>
+              <button
+                onClick={gerarPDFInventarioEstoque}
+                className="flex items-center gap-2 px-4 py-2.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-xl text-sm font-medium transition"
+                title="Gerar planilha PDF para conferência física de estoque a caneta"
+              >
+                <ClipboardCheck className="w-4 h-4" /> Inventário de Estoque
+              </button>
+              <button
+                onClick={() => setModalNovoPedido(true)}
+                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-blue-600/30 transition"
+              >
+                <FileText className="w-4 h-4" /> Novo Pedido / Romaneio
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between w-full gap-3">
+              <div className="bg-blue-950/30 border border-blue-500/30 text-blue-300 px-4 py-2.5 rounded-xl text-xs flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 shrink-0" />
+                Modo Gestor: Visualização de Dashboards, consulta de Estoque e emissão de Relatórios Gerenciais.
+              </div>
+              <button
+                onClick={gerarPDFInventarioEstoque}
+                className="flex items-center gap-2 px-4 py-2.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-xl text-sm font-medium transition"
+              >
+                <ClipboardCheck className="w-4 h-4" /> Inventário de Estoque
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* CARDS DE INDICADORES */}
         <section
@@ -1331,7 +1609,7 @@ export default function App() {
                     : "bg-slate-800 text-slate-400 hover:text-white"
                 }`}
               >
-                <BarChart3 className="w-4 h-4" /> Relatórios Financeiros
+                <BarChart3 className="w-4 h-4" /> Relatório Gerencial
               </button>
             )}
 
@@ -1519,6 +1797,11 @@ export default function App() {
                         </td>
                         <td className="py-3 px-4 font-medium text-white">
                           {rom.requerente}
+                          {rom.observacao && (
+                            <p className="text-xs text-slate-400 mt-0.5 italic">
+                              Obs: {rom.observacao}
+                            </p>
+                          )}
                           {cancelado && rom.motivoCancelamento && (
                             <p className="text-xs text-red-400 mt-0.5">
                               Causa estorno: {rom.motivoCancelamento}
@@ -1569,33 +1852,36 @@ export default function App() {
           </div>
         )}
 
-        {/* ABA 3: RELATÓRIOS FINANCEIROS */}
+        {/* ABA 3: RELATÓRIO GERENCIAL (MATRIZ REQUERENTES X MATERIAIS POR MÊS) */}
         {abaAtiva === "relatorios" && podeVerValores && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5 shadow-lg">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
               <div>
                 <h2 className="text-lg font-bold text-white">
-                  Relatório Financeiro de Saídas por Requerente
+                  Relatório Gerencial: Quantidades por Requerente × Material
                 </h2>
                 <p className="text-xs text-slate-400">
-                  Visão exclusiva para Gestores e Master (valores ocultos nos romaneios operacionais)
+                  Matriz consolidada de materiais retirados no mês selecionado ({matrizRelatorioMensal.totalRomaneiosMes} romaneios ativos no período)
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                <select
-                  value={filtroRequerenteRelatorio}
-                  onChange={(e) => setFiltroRequerenteRelatorio(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"
-                >
-                  <option value="TODOS">Todas as Intendências / Diretorias</option>
-                  {LISTA_REQUERENTES.map((req, i) => (
-                    <option key={i} value={req}>
-                      {req}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5">
+                  <span className="text-xs text-slate-400">Mês:</span>
+                  <input
+                    type="month"
+                    value={mesRelatorio}
+                    onChange={(e) => setMesRelatorio(e.target.value)}
+                    className="bg-transparent text-xs text-white focus:outline-none"
+                  />
+                </div>
                 <button
-                  onClick={exportarRelatorioCSV}
+                  onClick={imprimirMatrizRelatorioPDF}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold transition"
+                >
+                  <Printer className="w-4 h-4" /> Imprimir PDF
+                </button>
+                <button
+                  onClick={exportarMatrizCSV}
                   className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold transition"
                 >
                   <Download className="w-4 h-4" /> Exportar Excel (CSV)
@@ -1603,51 +1889,76 @@ export default function App() {
               </div>
             </div>
 
-            <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
-              <span className="text-sm text-slate-400">
-                Custo Total dos Romaneios Filtrados ({formatarQuantidadeBR(dadosRelatorioFinanceiro.lista.length)} saídas ativas):
-              </span>
-              <span className="text-xl font-bold text-emerald-400">
-                R$ {formatarMoedaBR(dadosRelatorioFinanceiro.valorTotalSaidas)}
-              </span>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 text-xs uppercase">
-                    <th className="py-3 px-4">Romaneio</th>
-                    <th className="py-3 px-4">Data</th>
-                    <th className="py-3 px-4">Requerente / Destino</th>
-                    <th className="py-3 px-4">Responsável</th>
-                    <th className="py-3 px-4 text-right">Valor Financeiro</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800">
-                  {dadosRelatorioFinanceiro.lista.map((r) => (
-                    <tr key={r.id} className="hover:bg-slate-800/40">
-                      <td className="py-3 px-4 font-mono text-blue-400">
-                        #{r.numeroRomaneio}
-                      </td>
-                      <td className="py-3 px-4 text-slate-300">
-                        {r.dataEmissao
-                          ? new Date(r.dataEmissao).toLocaleString("pt-BR")
-                          : "-"}
-                      </td>
-                      <td className="py-3 px-4 font-medium text-white">
-                        {r.requerente}
-                      </td>
-                      <td className="py-3 px-4 text-xs text-slate-400">
-                        {r.emitidoPorEmail || "-"}
-                      </td>
-                      <td className="py-3 px-4 text-right font-semibold text-emerald-400">
-                        R$ {formatarMoedaBR(r.valorTotal)}
-                      </td>
+            {matrizRelatorioMensal.colunasMateriais.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 text-sm">
+                Nenhuma saída de material registrada para o mês selecionado ({mesRelatorio}).
+              </div>
+            ) : (
+              <div className="overflow-x-auto border border-slate-800 rounded-xl">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-950 border-b border-slate-800 text-slate-300">
+                      <th className="py-3 px-4 border-r border-slate-800 min-w-[220px] sticky left-0 bg-slate-950 z-10">
+                        Requerente / Destino
+                      </th>
+                      {matrizRelatorioMensal.colunasMateriais.map((mat) => (
+                        <th
+                          key={mat.chave}
+                          className="py-3 px-3 text-center border-r border-slate-800 min-w-[130px]"
+                        >
+                          <div className="font-mono text-amber-400 text-[11px]">
+                            [{mat.codigo}]
+                          </div>
+                          <div className="text-white font-semibold line-clamp-2 mt-0.5" title={mat.nome}>
+                            {mat.nome}
+                          </div>
+                          <div className="text-[10px] text-slate-400 mt-0.5">
+                            ({mat.unidade})
+                          </div>
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {matrizRelatorioMensal.linhasRequerentes.map((linha) => (
+                      <tr key={linha.requerente} className="hover:bg-slate-800/40">
+                        <td className="py-3 px-4 font-semibold text-white border-r border-slate-800 sticky left-0 bg-slate-900">
+                          {linha.requerente}
+                        </td>
+                        {matrizRelatorioMensal.colunasMateriais.map((mat) => {
+                          const qtd = linha.quantidades[mat.chave] || 0;
+                          return (
+                            <td
+                              key={mat.chave}
+                              className={`py-3 px-3 text-right border-r border-slate-800 ${
+                                qtd > 0
+                                  ? "font-bold text-emerald-400 bg-emerald-950/10"
+                                  : "text-slate-600"
+                              }`}
+                            >
+                              {qtd > 0 ? formatarQuantidadeBR(qtd) : "-"}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                    <tr className="bg-slate-950/90 font-bold border-t-2 border-slate-700">
+                      <td className="py-3.5 px-4 text-amber-400 border-r border-slate-800 sticky left-0 bg-slate-950">
+                        TOTAL MENSAL POR MATERIAL
+                      </td>
+                      {matrizRelatorioMensal.colunasMateriais.map((mat) => (
+                        <td
+                          key={mat.chave}
+                          className="py-3.5 px-3 text-right text-amber-300 border-r border-slate-800"
+                        >
+                          {formatarQuantidadeBR(mat.totalGeral)} {mat.unidade}
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
@@ -2194,7 +2505,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL 4: NOVO PEDIDO E ROMANEIO */}
+      {/* MODAL 4: NOVO PEDIDO E ROMANEIO (COM CAMPO OBSERVAÇÃO OPCIONAL) */}
       {modalNovoPedido && podeOperar && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full p-6 space-y-5 max-h-[90vh] flex flex-col">
@@ -2248,12 +2559,25 @@ export default function App() {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">
+                  Observação (Opcional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Informações adicionais sobre a entrega, local específico da obra, placa do caminhão, etc."
+                  value={observacaoPedido}
+                  onChange={(e) => setObservacaoPedido(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm"
+                />
+              </div>
+
               <div className="border border-slate-800 rounded-xl overflow-hidden">
                 <div className="bg-slate-950 px-4 py-2.5 text-xs font-semibold uppercase text-slate-400 flex justify-between">
                   <span>Materiais Disponíveis</span>
                   <span>Itens marcados: {formatarQuantidadeBR(itensSelecionados.length)}</span>
                 </div>
-                <div className="max-h-80 overflow-y-auto divide-y divide-slate-800">
+                <div className="max-h-72 overflow-y-auto divide-y divide-slate-800">
                   {materiais.map((mat) => {
                     const itemMarcado = itensSelecionados.find(
                       (i) => i.id === mat.id
